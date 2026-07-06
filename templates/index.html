@@ -1,0 +1,359 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SmartCS - 多模态情感识别系统</title>
+  <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+  <style>
+    /* SmartCS 首页特有样式 */
+    :root {
+      --primary-color: #0d9488;
+      --bg-color: #f5f7fa;
+      --chat-bg: #ffffff;
+      --user-msg-bg: #0d9488;
+      --bot-msg-bg: #f1f2f6;
+      --accent-color: #ef4444;
+    }
+
+    body {
+      font-family: var(--font-sans);
+      background-color: var(--bg-color);
+      margin: 0;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      min-height: 100dvh;
+    }
+
+        .main-container {
+            width: 100%;
+            max-width: 800px;
+            height: 90vh;
+            background-color: var(--chat-bg);
+            border-radius: 20px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.1);
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        .header {
+            background: linear-gradient(135deg, #4a90e2, #67b26f);
+            color: white;
+            padding: 20px;
+            text-align: center;
+            font-size: 1.2rem;
+            font-weight: bold;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+        }
+
+        .chat-box {
+            flex: 1;
+            padding: 20px;
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+            background-color: #f9f9f9;
+        }
+
+        .message {
+            max-width: 70%;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .message-content {
+            padding: 12px 16px;
+            border-radius: 15px;
+            font-size: 15px;
+            line-height: 1.5;
+            position: relative;
+            word-wrap: break-word;
+        }
+
+        .message.bot { align-self: flex-start; }
+        .message.bot .message-content { background-color: var(--bot-msg-bg); color: #333; border-bottom-left-radius: 2px; }
+
+        .message.user { align-self: flex-end; }
+        .message.user .message-content { background-color: var(--user-msg-bg); color: white; border-bottom-right-radius: 2px; }
+
+        .emotion-tag {
+            font-size: 11px;
+            margin-bottom: 4px;
+            color: #666;
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+        .emotion-badge {
+            background-color: #ff9f43;
+            color: white;
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-weight: bold;
+            font-size: 10px;
+        }
+
+        .input-area {
+            padding: 20px;
+            background-color: white;
+            border-top: 1px solid #eee;
+            display: flex;
+            gap: 10px;
+            align-items: center;
+        }
+
+        input[type="text"] {
+            flex: 1;
+            padding: 15px;
+            border: 1px solid #ddd;
+            border-radius: 30px;
+            outline: none;
+            transition: border-color 0.3s;
+        }
+        input[type="text"]:focus {
+            border-color: var(--primary-color);
+        }
+
+        /* 通用按钮样式 */
+        .btn {
+            color: white;
+            border: none;
+            border-radius: 50%; /* 圆形按钮 */
+            width: 46px;
+            height: 46px;
+            cursor: pointer;
+            font-size: 18px;
+            transition: all 0.3s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        #sendBtn {
+            background-color: var(--primary-color);
+            border-radius: 30px; /* 发送按钮保持椭圆 */
+            width: auto;
+            padding: 0 25px;
+        }
+        #sendBtn:hover { background-color: #357abd; }
+
+        /* 麦克风按钮样式 */
+        #micBtn {
+            background-color: #f1f2f6;
+            color: #666;
+        }
+        #micBtn:hover { background-color: #e1e2e6; }
+
+        /* 录音中的状态 */
+        #micBtn.recording {
+            background-color: var(--accent-color);
+            color: white;
+            animation: pulse 1.5s infinite;
+        }
+
+        @keyframes pulse {
+            0% { transform: scale(1); box-shadow: 0 0 0 0 rgba(255, 107, 107, 0.7); }
+            70% { transform: scale(1.1); box-shadow: 0 0 0 10px rgba(255, 107, 107, 0); }
+            100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(255, 107, 107, 0); }
+        }
+
+        .typing-indicator {
+            display: none;
+            align-self: flex-start;
+            background-color: var(--bot-msg-bg);
+            padding: 10px 15px;
+            border-radius: 15px;
+            margin-bottom: 10px;
+            font-size: 12px;
+            color: #888;
+        }
+
+        /* 语音开关提示 */
+        .voice-toggle {
+            font-size: 12px;
+            color: #888;
+            margin-left: auto;
+            cursor: pointer;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="main-container">
+        <div class="header">
+            <i class="fas fa-headset"></i>
+            <!-- 显示用户名 -->
+            欢迎, {{ name }} |
+            <a href="/dashboard" style="color: white; margin: 0 10px;">数据分析</a>
+            <a href="/logout" style="color: #ffcccc; text-decoration: none; font-size: 0.9em;">[退出登录]</a>
+        </div>
+
+
+        <div class="chat-box" id="chatBox">
+            <div class="message bot">
+                <div class="message-content">
+                    你好！我是支持语音交互的 AI。点击下方的麦克风 🎙️ 跟我说话吧！🔊
+                </div>
+            </div>
+        </div>
+
+        <div class="typing-indicator" id="typingIndicator">
+            AI 正在思考... <i class="fas fa-spinner fa-spin"></i>
+        </div>
+
+        <div class="input-area">
+            <!-- 麦克风按钮 -->
+            <button id="micBtn" class="btn" title="点击开始说话"><i class="fas fa-microphone"></i></button>
+
+            <input type="text" id="messageInput" placeholder="输入文字或使用语音..." autocomplete="off">
+            <button onclick="sendMessage()" id="sendBtn" class="btn"><i class="fas fa-paper-plane"></i> 发送</button>
+        </div>
+    </div>
+
+    <script>
+        const input = document.getElementById("messageInput");
+        const chatBox = document.getElementById("chatBox");
+        const sendBtn = document.getElementById("sendBtn");
+        const micBtn = document.getElementById("micBtn");
+        const typingIndicator = document.getElementById("typingIndicator");
+
+        // === 1. 语音识别逻辑 (Speech to Text) ===
+        const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+        let recognition = null;
+
+        if (SpeechRecognition) {
+            recognition = new SpeechRecognition();
+            recognition.lang = 'zh-CN'; // 设置为中文
+            recognition.continuous = false; // 说完一句自动停止
+
+            recognition.onstart = function() {
+                micBtn.classList.add("recording");
+                input.placeholder = "正在聆听... 请说话";
+            };
+
+            recognition.onend = function() {
+                micBtn.classList.remove("recording");
+                input.placeholder = "输入文字或使用语音...";
+            };
+
+            recognition.onresult = function(event) {
+                const transcript = event.results[0][0].transcript;
+                input.value = transcript;
+                // 语音识别完毕后，自动发送（如果不想自动发送，注释掉下面这行）
+                sendMessage();
+            };
+        } else {
+            micBtn.style.display = 'none'; // 如果浏览器不支持，隐藏按钮
+            console.log("当前浏览器不支持 Web Speech API");
+        }
+
+        // 绑定麦克风点击事件
+        micBtn.addEventListener("click", () => {
+            if (recognition) {
+                try {
+                    recognition.start();
+                } catch (e) {
+                    recognition.stop();
+                }
+            } else {
+                alert("你的浏览器不支持语音识别，请使用 Chrome 或 Edge。");
+            }
+        });
+
+        // === 2. 语音播报逻辑 (Text to Speech) ===
+        function speakText(text) {
+            if ('speechSynthesis' in window) {
+                // 停止当前正在说的
+                window.speechSynthesis.cancel();
+
+                const utterance = new SpeechSynthesisUtterance(text);
+                utterance.lang = 'zh-CN';
+                utterance.rate = 1.0; // 语速
+                utterance.pitch = 1.0; // 音调
+                window.speechSynthesis.speak(utterance);
+            }
+        }
+
+        // === 发送消息逻辑 ===
+        input.addEventListener("keypress", function(event) {
+            if (event.key === "Enter") sendMessage();
+        });
+
+        function sendMessage() {
+            const text = input.value.trim();
+            if (!text) return;
+
+            appendMessage('user', text);
+            input.value = "";
+            input.disabled = true;
+            sendBtn.disabled = true;
+
+            typingIndicator.style.display = 'block';
+            chatBox.scrollTop = chatBox.scrollHeight;
+
+            fetch('/api/chat', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ text: text })
+            })
+            .then(response => response.json())
+            .then(data => {
+                typingIndicator.style.display = 'none';
+                if (data.error) {
+                    appendMessage('bot', "错误：" + data.error);
+                } else {
+                    appendMessage('bot', data.reply, data.emotion, data.confidence);
+                    // 收到回复后，自动朗读
+                    speakText(data.reply);
+                }
+            })
+            .catch(error => {
+                typingIndicator.style.display = 'none';
+                appendMessage('bot', "连接失败。");
+            })
+            .finally(() => {
+                input.disabled = false;
+                sendBtn.disabled = false;
+                input.focus();
+            });
+        }
+
+        function appendMessage(sender, text, emotion = null, confidence = null) {
+            const msgDiv = document.createElement("div");
+            msgDiv.classList.add("message", sender);
+
+            let htmlContent = "";
+            if (sender === 'bot' && emotion) {
+                const emotionIcons = { 'happy': '😄', 'sad': '😢', 'angry': '😡', 'fear': '😨', 'surprise': '😲', 'neutral': '😐' };
+                const emotionCN = { 'happy': '开心', 'sad': '悲伤', 'angry': '愤怒', 'fear': '恐惧', 'surprise': '惊讶', 'neutral': '中性' };
+
+                htmlContent += `
+                    <div class="emotion-tag">
+                        <span>识别结果: </span>
+                        <span class="emotion-badge" style="background:${getEmotionColor(emotion)}">
+                            ${emotionIcons[emotion] || '🤖'} ${emotionCN[emotion] || emotion}
+                        </span>
+                        <span style="margin-left:5px;">置信度: ${confidence}</span>
+                    </div>
+                `;
+            }
+            htmlContent += `<div class="message-content">${text}</div>`;
+            msgDiv.innerHTML = htmlContent;
+            chatBox.appendChild(msgDiv);
+            chatBox.scrollTop = chatBox.scrollHeight;
+        }
+
+        function getEmotionColor(emotion) {
+            const colors = { 'happy': '#2ecc71', 'sad': '#3498db', 'angry': '#e74c3c', 'fear': '#9b59b6', 'surprise': '#f1c40f', 'neutral': '#95a5a6' };
+            return colors[emotion] || '#95a5a6';
+        }
+    </script>
+</body>
+</html>

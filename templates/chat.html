@@ -1,0 +1,3446 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>智能客服 - 聊天</title>
+
+  <!-- 引入字体图标库 -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+
+  <!-- 引入 Markdown 解析库 -->
+  <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+
+  <!-- 引入 Socket.IO 客户端库 -->
+  <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
+
+  <!-- 自定义样式 -->
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+
+  <style>
+    /* 页面特有样式 — 通用设计系统见 static/style.css */
+
+    /* 主容器 */
+    .app-container {
+      display: flex;
+      min-height: 100dvh;
+      width: 100vw;
+      overflow: hidden;
+    }
+
+    /* 左侧边栏 */
+    .sidebar {
+      width: 260px;
+      background: var(--bg-card);
+      border-right: 1px solid var(--border);
+      display: flex;
+      flex-direction: column;
+      transition: all 0.3s ease;
+    }
+
+    .sidebar-header {
+      padding: 20px;
+      border-bottom: 1px solid var(--border);
+      background: var(--primary);
+      color: white;
+    }
+
+    .logo {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .logo-icon {
+      width: 42px;
+      height: 42px;
+      background: rgba(255,255,255,0.2);
+      border-radius: 12px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 20px;
+    }
+
+    .logo-text {
+      font-size: 18px;
+      font-weight: 700;
+    }
+
+    .logo-subtitle {
+      font-size: 11px;
+      opacity: 0.8;
+      margin-top: 2px;
+    }
+
+    /* 用户信息 */
+    .user-profile {
+      padding: 20px;
+      background: var(--bg-secondary);
+      border-bottom: 1px solid var(--border);
+    }
+
+    .user-avatar-wrapper {
+      position: relative;
+      width: 72px;
+      height: 72px;
+      margin: 0 auto 12px;
+    }
+
+    .user-avatar {
+      width: 72px;
+      height: 72px;
+      border-radius: 50%;
+      background: linear-gradient(135deg, var(--primary-light), var(--primary));
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: white;
+      font-size: 28px;
+      font-weight: 600;
+      box-shadow: 0 4px 12px rgba(13, 148, 136, 0.20);
+    }
+
+    .user-status {
+      position: absolute;
+      bottom: 4px;
+      right: 4px;
+      width: 16px;
+      height: 16px;
+      background: var(--success);
+      border: 3px solid var(--bg-card);
+      border-radius: 50%;
+    }
+
+    .user-name {
+      text-align: center;
+      font-size: 16px;
+      font-weight: 600;
+      color: var(--text-primary);
+      margin-bottom: 4px;
+    }
+
+    .user-mood {
+      text-align: center;
+      font-size: 12px;
+      color: var(--text-secondary);
+    }
+
+    /* 快捷菜单 */
+    .quick-menu {
+      padding: 12px;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .menu-item {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 12px 14px;
+      border-radius: 10px;
+      color: var(--text-secondary);
+      cursor: pointer;
+      transition: all 0.2s;
+      margin-bottom: 4px;
+    }
+
+    .menu-item:hover {
+      background: var(--bg-secondary);
+      color: var(--text-primary);
+    }
+
+    .menu-item.active {
+      background: linear-gradient(135deg, var(--primary), var(--primary-dark));
+      color: white;
+    }
+
+    .menu-item i {
+      font-size: 18px;
+      width: 24px;
+      text-align: center;
+    }
+
+    .menu-badge {
+      margin-left: auto;
+      background: var(--danger);
+      color: white;
+      font-size: 11px;
+      padding: 2px 8px;
+      border-radius: 999px;
+    }
+
+    /* FAQ 面板 */
+    .faq-panel {
+      flex: 1;
+      overflow-y: auto;
+      padding: 12px;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .faq-title {
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      padding: 8px 12px;
+      margin-bottom: 8px;
+    }
+
+    .faq-item {
+      padding: 12px 14px;
+      background: var(--bg-secondary);
+      border-radius: 10px;
+      margin-bottom: 8px;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .faq-item:hover {
+      background: var(--primary);
+      color: white;
+    }
+
+    .faq-item h4 {
+      font-size: 13px;
+      font-weight: 600;
+      margin: 0 0 4px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .faq-item p {
+      font-size: 12px;
+      margin: 0;
+      opacity: 0.8;
+      line-height: 1.5;
+    }
+
+    /* 设置面板 */
+    .settings-panel {
+      padding: 12px;
+      border-top: 1px solid var(--border);
+    }
+
+    .setting-item {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 10px 12px;
+      border-radius: 8px;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .setting-item:hover {
+      background: var(--bg-secondary);
+    }
+
+    .setting-label {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-size: 13px;
+      color: var(--text-secondary);
+    }
+
+    .toggle-switch {
+      width: 44px;
+      height: 24px;
+      background: var(--border);
+      border-radius: 999px;
+      position: relative;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+
+    .toggle-switch.active {
+      background: var(--primary);
+    }
+
+    .toggle-switch::after {
+      content: '';
+      position: absolute;
+      top: 2px;
+      left: 2px;
+      width: 20px;
+      height: 20px;
+      background: white;
+      border-radius: 50%;
+      transition: transform 0.2s;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    }
+
+    .toggle-switch.active::after {
+      transform: translateX(20px);
+    }
+
+    /* 主内容区 */
+    .main-content {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      background: var(--bg-primary);
+    }
+
+    /* 聊天头部 */
+    .chat-header {
+      padding: 16px 24px;
+      background: var(--bg-card);
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .chat-header-left {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+    }
+
+    .chat-avatar {
+      width: 48px;
+      height: 48px;
+      background: linear-gradient(135deg, var(--primary), var(--secondary));
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: white;
+      font-size: 22px;
+    }
+
+    .chat-info h2 {
+      font-size: 16px;
+      font-weight: 600;
+      color: var(--text-primary);
+      margin: 0;
+    }
+
+    .chat-status {
+      font-size: 12px;
+      color: var(--text-secondary);
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      margin-top: 2px;
+    }
+
+    .online-dot {
+      width: 8px;
+      height: 8px;
+      background: var(--success);
+      border-radius: 50%;
+      animation: pulse 2s infinite;
+    }
+
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.5; }
+    }
+
+    .chat-header-actions {
+      display: flex;
+      gap: 8px;
+    }
+
+    .header-btn {
+      width: 40px;
+      height: 40px;
+      border: none;
+      background: var(--bg-secondary);
+      border-radius: 10px;
+      color: var(--text-secondary);
+      cursor: pointer;
+      transition: all 0.2s;
+      font-size: 16px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .header-btn:hover {
+      background: var(--primary);
+      color: white;
+    }
+
+    .header-btn.active {
+      background: var(--primary);
+      color: white;
+    }
+
+    /* 情绪指示器 */
+    .emotion-indicator {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 6px 14px;
+      background: var(--bg-secondary);
+      border-radius: 999px;
+      font-size: 13px;
+      color: var(--text-secondary);
+    }
+
+    .emotion-indicator.happy { background: #dcfce7; color: #059669; }
+    .emotion-indicator.sad { background: #f3e8ff; color: #7c3aed; }
+    .emotion-indicator.angry { background: #fee2e2; color: #dc2626; }
+    .emotion-indicator.fear { background: #dbeafe; color: #2563eb; }
+    .emotion-indicator.surprise { background: #ffedd5; color: #d97706; }
+
+    /* 聊天消息区 */
+    .chat-messages {
+      flex: 1;
+      overflow-y: auto;
+      padding: 24px;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+
+    .chat-messages::-webkit-scrollbar {
+      width: 6px;
+    }
+
+    .chat-messages::-webkit-scrollbar-track {
+      background: transparent;
+    }
+
+    .chat-messages::-webkit-scrollbar-thumb {
+      background: var(--border);
+      border-radius: 3px;
+    }
+
+    /* 搜索栏 */
+    .search-bar {
+      padding: 12px 24px;
+      background: var(--bg-card);
+      border-bottom: 1px solid var(--border);
+      display: none;
+    }
+
+    .search-bar.active {
+      display: block;
+    }
+
+    .search-input-wrapper {
+      position: relative;
+    }
+
+    .search-input {
+      width: 100%;
+      padding: 10px 16px 10px 44px;
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      font-size: 14px;
+      background: var(--bg-secondary);
+      color: var(--text-primary);
+      outline: none;
+    }
+
+    .search-input:focus {
+      border-color: var(--primary);
+    }
+
+    .search-input i {
+      position: absolute;
+      left: 16px;
+      top: 50%;
+      transform: translateY(-50%);
+      color: var(--text-muted);
+    }
+
+    /* 欢迎屏幕 */
+    .welcome-screen {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      text-align: center;
+      padding: 40px;
+    }
+
+    .welcome-icon {
+      width: 100px;
+      height: 100px;
+      background: linear-gradient(135deg, var(--primary), var(--secondary));
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin-bottom: 24px;
+      animation: float 3s ease-in-out infinite;
+      box-shadow: 0 8px 32px rgba(13, 148, 136, 0.20);
+    }
+
+    @keyframes float {
+      0%, 100% { transform: translateY(0); }
+      50% { transform: translateY(-10px); }
+    }
+
+    .welcome-icon i {
+      font-size: 44px;
+      color: white;
+    }
+
+    .welcome-title {
+      font-size: 24px;
+      font-weight: 700;
+      color: var(--text-primary);
+      margin-bottom: 8px;
+    }
+
+    .welcome-subtitle {
+      font-size: 14px;
+      color: var(--text-secondary);
+      margin-bottom: 32px;
+      max-width: 400px;
+    }
+
+    /* 快捷功能卡片 */
+    .quick-actions-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 12px;
+      width: 100%;
+      max-width: 600px;
+    }
+
+    .quick-action-card {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 10px;
+      padding: 20px 16px;
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .quick-action-card:hover {
+      border-color: var(--primary);
+      transform: translateY(-3px);
+      box-shadow: 0 8px 24px rgba(0,0,0,0.08);
+    }
+
+    .quick-action-icon {
+      width: 48px;
+      height: 48px;
+      border-radius: 12px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 22px;
+    }
+
+    .quick-action-icon.blue { background: #dbeafe; color: #2563eb; }
+    .quick-action-icon.green { background: #dcfce7; color: #16a34a; }
+    .quick-action-icon.red { background: #fee2e2; color: #dc2626; }
+    .quick-action-icon.purple { background: #f3e8ff; color: #9333ea; }
+    .quick-action-icon.orange { background: #ffedd5; color: #ea580c; }
+    .quick-action-icon.cyan { background: #cffafe; color: #0891b2; }
+
+    .quick-action-title {
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--text-primary);
+    }
+
+    .quick-action-desc {
+      font-size: 11px;
+      color: var(--text-muted);
+    }
+
+    /* 消息气泡 */
+    .message {
+      display: flex;
+      gap: 12px;
+      max-width: 75%;
+      animation: slideIn 0.3s ease;
+    }
+
+    @keyframes slideIn {
+      from { opacity: 0; transform: translateY(10px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    .message.user {
+      margin-left: auto;
+      flex-direction: row-reverse;
+    }
+
+    .message-avatar {
+      width: 38px;
+      height: 38px;
+      border-radius: 50%;
+      background: linear-gradient(135deg, var(--primary), var(--secondary));
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: white;
+      font-size: 16px;
+      flex-shrink: 0;
+    }
+
+    .message.user .message-avatar {
+      background: linear-gradient(135deg, var(--secondary), var(--primary));
+    }
+
+    .message.bot .message-avatar {
+      background: var(--bg-secondary);
+      color: var(--text-secondary);
+    }
+
+    .message-content {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+
+    .message.user .message-content {
+      align-items: flex-end;
+    }
+
+    .message-meta {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 11px;
+      color: var(--text-muted);
+      padding: 0 4px;
+    }
+
+    .message-bubble {
+      padding: 12px 16px;
+      border-radius: 16px;
+      font-size: 14px;
+      line-height: 1.6;
+      word-break: break-word;
+      position: relative;
+    }
+
+    .message.user .message-bubble {
+      background: linear-gradient(135deg, var(--primary), var(--primary-dark));
+      color: white;
+      border-bottom-right-radius: 4px;
+    }
+
+    .message.bot .message-bubble {
+      background: var(--bg-card);
+      color: var(--text-primary);
+      border: 1px solid var(--border);
+      border-bottom-left-radius: 4px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.04);
+    }
+
+    /* Markdown 样式 */
+    .message-bubble p { margin: 0 0 8px; }
+    .message-bubble p:last-child { margin-bottom: 0; }
+    .message-bubble ul, .message-bubble ol { margin: 0 0 8px; padding-left: 20px; }
+    .message-bubble code {
+      background: rgba(0,0,0,0.08);
+      padding: 2px 6px;
+      border-radius: 4px;
+      font-family: monospace;
+      font-size: 90%;
+    }
+    .message.user .message-bubble code {
+      background: rgba(255,255,255,0.2);
+    }
+
+    /* 情绪标签 */
+    .emotion-tag {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      padding: 3px 10px;
+      border-radius: 999px;
+      font-size: 11px;
+      font-weight: 500;
+      margin-top: 4px;
+    }
+
+    .emotion-tag.neutral { background: #f1f5f9; color: #64748b; }
+    .emotion-tag.happy { background: #dcfce7; color: #059669; }
+    .emotion-tag.sad { background: #f3e8ff; color: #7c3aed; }
+    .emotion-tag.angry { background: #fee2e2; color: #dc2626; }
+    .emotion-tag.fear { background: #dbeafe; color: #2563eb; }
+    .emotion-tag.surprise { background: #ffedd5; color: #d97706; }
+
+    /* 消息操作按钮 */
+    .message-actions {
+      display: flex;
+      gap: 4px;
+      margin-top: 4px;
+      opacity: 0;
+      transition: opacity 0.2s;
+    }
+
+    .message:hover .message-actions {
+      opacity: 1;
+    }
+
+    .action-btn {
+      padding: 4px 10px;
+      border: none;
+      background: var(--bg-secondary);
+      border-radius: 6px;
+      color: var(--text-muted);
+      font-size: 12px;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .action-btn:hover {
+      background: var(--primary);
+      color: white;
+    }
+
+    .action-btn.liked {
+      background: var(--success);
+      color: white;
+    }
+
+    .action-btn.disliked {
+      background: var(--danger);
+      color: white;
+    }
+
+    .action-btn.starred {
+      background: var(--warning);
+      color: white;
+    }
+
+    /* 星级评价 */
+    .rating-container {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 20px;
+      margin-top: 8px;
+      max-width: 320px;
+    }
+
+    .rating-title {
+      font-size: 14px;
+      font-weight: 600;
+      color: var(--text-primary);
+      margin-bottom: 12px;
+      text-align: center;
+    }
+
+    .rating-stars {
+      display: flex;
+      justify-content: center;
+      gap: 8px;
+      margin-bottom: 12px;
+    }
+
+    .star {
+      font-size: 32px;
+      color: var(--border);
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .star:hover, .star.active {
+      color: var(--warning);
+      transform: scale(1.1);
+    }
+
+    .rating-text {
+      text-align: center;
+      font-size: 13px;
+      color: var(--text-secondary);
+    }
+
+    /* 订单卡片 */
+    .order-cards-container {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      margin-top: 8px;
+    }
+
+    .order-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      overflow: hidden;
+      max-width: 340px;
+      transition: all 0.2s;
+    }
+
+    .order-card:hover {
+      box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+      transform: translateY(-2px);
+    }
+
+    .order-card-header {
+      padding: 12px 16px;
+      background: var(--bg-secondary);
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .order-number {
+      font-size: 12px;
+      color: var(--text-muted);
+      font-family: monospace;
+    }
+
+    .order-arrival {
+      font-size: 12px;
+      color: var(--text-secondary);
+    }
+
+    .order-card-body {
+      padding: 16px;
+    }
+
+    .order-product {
+      font-size: 15px;
+      font-weight: 600;
+      color: var(--text-primary);
+      margin-bottom: 10px;
+    }
+
+    .order-status-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 12px;
+    }
+
+    .status-dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      background: var(--warning);
+    }
+
+    .status-dot.delivered { background: var(--success); }
+    .status-dot.shipped { background: var(--info); }
+
+    .order-status-text {
+      font-size: 13px;
+      color: var(--text-secondary);
+      flex: 1;
+    }
+
+    .order-progress {
+      height: 4px;
+      background: var(--bg-secondary);
+      border-radius: 999px;
+      overflow: hidden;
+      margin-bottom: 12px;
+    }
+
+    .order-progress-bar {
+      height: 100%;
+      background: linear-gradient(90deg, var(--primary), var(--secondary));
+      border-radius: 999px;
+    }
+
+    .confirm-btn {
+      width: 100%;
+      padding: 10px;
+      border: none;
+      background: linear-gradient(135deg, var(--primary), var(--primary-dark));
+      color: white;
+      border-radius: 8px;
+      font-size: 14px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .confirm-btn:hover {
+      transform: scale(1.02);
+      box-shadow: 0 4px 12px rgba(13, 148, 136, 0.20);
+    }
+
+    .confirm-btn:disabled {
+      background: var(--bg-secondary);
+      color: var(--text-muted);
+      cursor: not-allowed;
+      transform: none;
+    }
+
+    /* 加载动画 */
+    .typing-indicator {
+      display: flex;
+      gap: 12px;
+      max-width: 75%;
+    }
+
+    .typing-dots {
+      display: inline-flex;
+      gap: 4px;
+      padding: 14px 18px;
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      border-bottom-left-radius: 4px;
+    }
+
+    .typing-dot {
+      width: 8px;
+      height: 8px;
+      background: var(--text-muted);
+      border-radius: 50%;
+      animation: bounce 1.4s infinite ease-in-out;
+    }
+
+    .typing-dot:nth-child(1) { animation-delay: -0.32s; }
+    .typing-dot:nth-child(2) { animation-delay: -0.16s; }
+
+    @keyframes bounce {
+      0%, 80%, 100% { transform: scale(0); }
+      40% { transform: scale(1); }
+    }
+
+    /* 快捷回复栏 */
+    .quick-replies {
+      padding: 10px 24px;
+      background: var(--bg-secondary);
+        border-top: 1px solid var(--border);
+      display: flex;
+      gap: 8px;
+      overflow-x: auto;
+      white-space: nowrap;
+    }
+
+    .quick-chip {
+      padding: 6px 14px;
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 999px;
+      font-size: 12px;
+      color: var(--text-secondary);
+      cursor: pointer;
+      transition: all 0.2s;
+      white-space: nowrap;
+    }
+
+    .quick-chip:hover {
+      border-color: var(--primary);
+      color: var(--primary);
+      background: rgba(79, 70, 229, 0.05);
+    }
+
+    /* 输入区域 */
+    .chat-input-area {
+      padding: 16px 24px;
+      background: var(--bg-card);
+      border-top: 1px solid var(--border);
+    }
+
+    .input-container {
+      display: flex;
+      gap: 12px;
+      align-items: flex-end;
+    }
+
+    .input-tools {
+      display: flex;
+      gap: 6px;
+    }
+
+    .tool-btn {
+      width: 42px;
+      height: 42px;
+      border: none;
+      background: var(--bg-secondary);
+      border-radius: 10px;
+      color: var(--text-secondary);
+      cursor: pointer;
+      transition: all 0.2s;
+      font-size: 16px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .tool-btn:hover {
+      background: var(--primary);
+      color: white;
+    }
+
+    .tool-btn.active {
+      background: var(--primary);
+      color: white;
+    }
+
+    .message-input {
+      flex: 1;
+      min-height: 44px;
+      max-height: 120px;
+      padding: 10px 16px;
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      font-size: 14px;
+      font-family: inherit;
+      color: var(--text-primary);
+      background: var(--bg-secondary);
+      resize: none;
+      outline: none;
+      transition: all 0.2s;
+      line-height: 1.5;
+    }
+
+    .message-input:focus {
+      border-color: var(--primary);
+      background: var(--bg-card);
+      box-shadow: 0 0 0 3px rgba(13, 148, 136, 0.12);
+    }
+
+    .message-input::placeholder {
+      color: var(--text-muted);
+    }
+
+    .send-btn {
+      width: 46px;
+      height: 46px;
+      border: none;
+      background: linear-gradient(135deg, var(--primary), var(--primary-dark));
+      color: white;
+      border-radius: 50%;
+      cursor: pointer;
+      transition: all 0.2s;
+      font-size: 18px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .send-btn:hover {
+      transform: scale(1.05);
+      box-shadow: 0 4px 12px rgba(13, 148, 136, 0.20);
+    }
+
+    .send-btn:active {
+      transform: scale(0.95);
+    }
+
+    .send-btn:disabled {
+      background: var(--bg-secondary);
+      color: var(--text-muted);
+      cursor: not-allowed;
+      transform: none;
+    }
+
+    /* 表情选择器 */
+    .emoji-picker {
+      position: absolute;
+      bottom: 100%;
+      left: 0;
+      width: 300px;
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      box-shadow: 0 8px 32px rgba(0,0,0,0.12);
+      padding: 12px;
+      margin-bottom: 8px;
+      display: none;
+      z-index: 100;
+    }
+
+    .emoji-picker.show {
+      display: block;
+      animation: fadeInUp 0.2s ease;
+    }
+
+    @keyframes fadeInUp {
+      from { opacity: 0; transform: translateY(10px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    .emoji-grid {
+      display: grid;
+      grid-template-columns: repeat(8, 1fr);
+      gap: 4px;
+    }
+
+    .emoji-item {
+      width: 34px;
+      height: 34px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 22px;
+      cursor: pointer;
+      border-radius: 6px;
+      transition: all 0.15s;
+    }
+
+    .emoji-item:hover {
+      background: var(--bg-secondary);
+      transform: scale(1.2);
+    }
+
+    /* 模态框 */
+    .modal-overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.5);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 1000;
+      opacity: 0;
+      visibility: hidden;
+      transition: all 0.3s;
+    }
+
+    .modal-overlay.show {
+      opacity: 1;
+      visibility: visible;
+    }
+
+    .modal {
+      background: var(--bg-card);
+      border-radius: 16px;
+      width: min(500px, 92vw);
+      max-height: 90vh;
+      overflow-y: auto;
+      transform: scale(0.9);
+      transition: transform 0.3s;
+    }
+
+    .modal-overlay.show .modal {
+      transform: scale(1);
+    }
+
+    .modal-header {
+      padding: 20px 24px;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .modal-title {
+      font-size: 18px;
+      font-weight: 600;
+      color: var(--text-primary);
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .modal-close {
+      width: 32px;
+      height: 32px;
+      border: none;
+      background: var(--bg-secondary);
+      border-radius: 50%;
+      cursor: pointer;
+      color: var(--text-secondary);
+      transition: all 0.2s;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .modal-close:hover {
+      background: var(--danger);
+      color: white;
+    }
+
+    .modal-body {
+      padding: 24px;
+    }
+
+    .modal-footer {
+      padding: 16px 24px;
+      border-top: 1px solid var(--border);
+      display: flex;
+      gap: 12px;
+      justify-content: flex-end;
+    }
+
+    /* FAQ 详细面板 */
+    .faq-detail-list {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+
+    .faq-detail-item {
+      background: var(--bg-secondary);
+      border-radius: 12px;
+      overflow: hidden;
+    }
+
+    .faq-detail-question {
+      padding: 14px 16px;
+      font-size: 14px;
+      font-weight: 600;
+      color: var(--text-primary);
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .faq-detail-question:hover {
+      background: var(--bg-primary);
+    }
+
+    .faq-detail-answer {
+      padding: 0 16px 14px;
+      font-size: 13px;
+      color: var(--text-secondary);
+      line-height: 1.6;
+      display: none;
+    }
+
+    .faq-detail-item.open .faq-detail-answer {
+      display: block;
+    }
+
+    .faq-detail-item.open .faq-question-arrow {
+      transform: rotate(180deg);
+    }
+
+    .faq-question-arrow {
+      transition: transform 0.2s;
+    }
+
+    /* 收藏列表 */
+    .favorite-list {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      max-height: 400px;
+      overflow-y: auto;
+    }
+
+    .favorite-item {
+      display: flex;
+      align-items: flex-start;
+      gap: 12px;
+      padding: 12px;
+      background: var(--bg-secondary);
+      border-radius: 10px;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .favorite-item:hover {
+      background: var(--bg-primary);
+    }
+
+    .favorite-content {
+      flex: 1;
+    }
+
+    .favorite-text {
+      font-size: 13px;
+      color: var(--text-primary);
+      margin-bottom: 4px;
+      display: -webkit-box;
+      -webkit-line-clamp: 2;
+      -webkit-box-orient: vertical;
+      overflow: hidden;
+    }
+
+    .favorite-time {
+      font-size: 11px;
+      color: var(--text-muted);
+    }
+
+    .favorite-delete {
+      color: var(--text-muted);
+      cursor: pointer;
+      padding: 4px;
+    }
+
+    .favorite-delete:hover {
+      color: var(--danger);
+    }
+
+    /* 公告面板 */
+    .announcement-panel {
+      background: linear-gradient(135deg, var(--primary), var(--primary-dark));
+      color: white;
+      padding: 16px 20px;
+      border-radius: 12px;
+      margin-bottom: 16px;
+    }
+
+    .announcement-header {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 8px;
+    }
+
+    .announcement-icon {
+      font-size: 20px;
+    }
+
+    .announcement-title {
+      font-size: 14px;
+      font-weight: 600;
+    }
+
+    .announcement-content {
+      font-size: 13px;
+      opacity: 0.9;
+      line-height: 1.6;
+    }
+
+    /* 表单样式 */
+    .form-group {
+      margin-bottom: 16px;
+    }
+
+    .form-label {
+      display: block;
+      font-size: 13px;
+      font-weight: 500;
+      color: var(--text-secondary);
+      margin-bottom: 6px;
+    }
+
+    .form-input {
+      width: 100%;
+      padding: 10px 14px;
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      font-size: 14px;
+      color: var(--text-primary);
+      background: var(--bg-secondary);
+      outline: none;
+      transition: all 0.2s;
+    }
+
+    .form-input:focus {
+      border-color: var(--primary);
+      background: var(--bg-card);
+      box-shadow: 0 0 0 3px rgba(13, 148, 136, 0.12);
+    }
+
+    .form-textarea {
+      min-height: 100px;
+      resize: vertical;
+    }
+
+    .form-select {
+      appearance: none;
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' fill='%2364748b' viewBox='0 0 16 16'%3E%3Cpath d='M8 11L3 6h10l-5 5z'/%3E%3C/svg%3E");
+      background-repeat: no-repeat;
+      background-position: right 12px center;
+      padding-right: 36px;
+    }
+
+    /* 按钮 */
+    .btn {
+      padding: 10px 20px;
+      border: none;
+      border-radius: 10px;
+      font-size: 14px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: all 0.2s;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+    }
+
+    .btn-primary {
+      background: linear-gradient(135deg, var(--primary), var(--primary-dark));
+      color: white;
+    }
+
+    .btn-primary:hover {
+      transform: translateY(-1px);
+      box-shadow: 0 4px 12px rgba(13, 148, 136, 0.20);
+    }
+
+    .btn-secondary {
+      background: var(--bg-secondary);
+      color: var(--text-secondary);
+    }
+
+    .btn-secondary:hover {
+      background: var(--border);
+    }
+
+    /* 消息提示 */
+    .toast {
+      position: fixed;
+      bottom: 100px;
+      left: 50%;
+      transform: translateX(-50%) translateY(100px);
+      padding: 12px 24px;
+      background: var(--text-primary);
+      color: white;
+      border-radius: 999px;
+      font-size: 14px;
+      box-shadow: 0 8px 32px rgba(0,0,0,0.2);
+      z-index: 2000;
+      opacity: 0;
+      transition: all 0.3s;
+    }
+
+    .toast.show {
+      transform: translateX(-50%) translateY(0);
+      opacity: 1;
+    }
+
+    /* 情绪主题 */
+    body.emotion-happy { --bg-primary: #fefce8; }
+    body.emotion-sad { --bg-primary: #f8fafc; }
+    body.emotion-angry { --bg-primary: #fef2f2; }
+    body.emotion-fear { --bg-primary: #eff6ff; }
+    body.emotion-surprise { --bg-primary: #fffbeb; }
+
+    /* 响应式 */
+    @media (max-width: 768px) {
+      .sidebar {
+        position: fixed;
+        left: -300px;
+        z-index: 1000;
+        min-height: 100dvh;
+      }
+
+      .sidebar.open {
+        left: 0;
+      }
+
+      .quick-actions-grid {
+        grid-template-columns: repeat(2, 1fr);
+      }
+
+      .message {
+        max-width: 90%;
+      }
+    }
+
+    /* 用户画像面板 */
+    .persona-panel {
+      padding: 16px;
+      background: linear-gradient(135deg, var(--bg-secondary), var(--bg-card));
+      border-radius: 14px;
+      margin-bottom: 12px;
+    }
+
+    .persona-tags {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+    }
+
+    .persona-tag {
+      padding: 4px 10px;
+      background: var(--primary);
+      color: white;
+      border-radius: 999px;
+      font-size: 11px;
+      font-weight: 500;
+    }
+
+    .persona-summary {
+      margin-top: 10px;
+      font-size: 12px;
+      color: var(--text-secondary);
+      line-height: 1.5;
+    }
+
+    /* 退款状态 */
+    .refund-status {
+      display: inline-block;
+      padding: 3px 10px;
+      border-radius: 6px;
+      font-size: 12px;
+    }
+
+    .refund-status.pending { background: #fef3c7; color: #92400e; }
+    .refund-status.approved { background: #d1fae5; color: #065f46; }
+    .refund-status.rejected { background: #fee2e2; color: #991b1b; }
+
+    .refund-list {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      max-height: 280px;
+      overflow-y: auto;
+    }
+
+    .refund-item {
+      background: var(--bg-secondary);
+      border-radius: 10px;
+      padding: 12px 14px;
+    }
+
+    .refund-item-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 6px;
+    }
+
+    .refund-item-order {
+      font-size: 12px;
+      color: var(--text-muted);
+    }
+
+    .refund-item-reason {
+      font-size: 13px;
+      color: var(--text-primary);
+      margin-bottom: 4px;
+    }
+
+    .refund-item-note {
+      font-size: 12px;
+      color: var(--text-muted);
+    }
+
+    .refund-item-date {
+      font-size: 11px;
+      color: var(--text-muted);
+      margin-top: 4px;
+    }
+  </style>
+</head>
+<body>
+
+  <div class="app-container">
+    <!-- 左侧边栏 -->
+    <aside class="sidebar" id="sidebar">
+      <div class="sidebar-header">
+        <div class="logo">
+          <div class="logo-icon">
+            <i class="fas fa-robot"></i>
+      </div>
+          <div>
+            <div class="logo-text">智能客服</div>
+            <div class="logo-subtitle">Smart Customer Service</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 用户信息 -->
+      <div class="user-profile">
+        <div class="user-avatar-wrapper">
+          <div class="user-avatar">{{ current_user.username[0].upper() }}</div>
+          <div class="user-status"></div>
+        </div>
+        <div class="user-name">{{ current_user.username }}</div>
+        <div class="user-mood" id="userMood">
+          <span id="moodEmoji">😊</span>
+          <span id="moodText">心情愉快</span>
+        </div>
+      </div>
+
+      <!-- 快捷菜单 -->
+      <div class="quick-menu">
+        <div class="menu-item active" onclick="switchTab('chat')" id="menuChat">
+          <i class="fas fa-comments"></i>
+          <span>在线客服</span>
+        </div>
+        <div class="menu-item" onclick="openModal('faqModal')" id="menuFaq">
+          <i class="fas fa-question-circle"></i>
+          <span>常见问题</span>
+        </div>
+        <div class="menu-item" onclick="openModal('favoriteModal')" id="menuFavorite">
+          <i class="fas fa-star"></i>
+          <span>我的收藏</span>
+          <span class="menu-badge" id="favoriteBadge" style="display: none;">0</span>
+        </div>
+        <div class="menu-item" onclick="openModal('orderModal')">
+          <i class="fas fa-box"></i>
+          <span>我的订单</span>
+        </div>
+        <div class="menu-item" onclick="openModal('refundModal')">
+          <i class="fas fa-undo"></i>
+          <span>退款申请</span>
+        </div>
+        <div class="menu-item" onclick="openModal('profileModal')">
+          <i class="fas fa-user"></i>
+          <span>个人中心</span>
+        </div>
+      </div>
+
+      <!-- FAQ 快速入口 -->
+      <div class="faq-panel" id="faqQuick">
+        <div class="faq-title">
+          <i class="fas fa-fire"></i> 热门问题
+        </div>
+        <div class="faq-item" onclick="sendQuickMessage('查询我的订单状态')">
+          <h4><i class="fas fa-box-open"></i> 如何查询订单？</h4>
+          <p>点击查看订单物流信息</p>
+        </div>
+        <div class="faq-item" onclick="sendQuickMessage('如何申请退款？')">
+          <h4><i class="fas fa-undo"></i> 退款流程是什么？</h4>
+          <p>了解详细的退款步骤</p>
+        </div>
+        <div class="faq-item" onclick="sendQuickMessage('联系人工客服')">
+          <h4><i class="fas fa-headset"></i> 如何转人工？</h4>
+          <p>转接人工客服服务</p>
+        </div>
+        <div class="faq-item" onclick="sendQuickMessage('产品使用说明')">
+          <h4><i class="fas fa-book"></i> 使用指南</h4>
+          <p>产品功能介绍</p>
+        </div>
+      </div>
+
+      <!-- 设置面板 -->
+      <div class="settings-panel">
+        <div class="setting-item" onclick="toggleTheme()">
+          <div class="setting-label">
+            <i class="fas fa-moon"></i>
+            <span>深色模式</span>
+          </div>
+          <div class="toggle-switch" id="themeToggle"></div>
+        </div>
+        <div class="setting-item" onclick="toggleSound()">
+          <div class="setting-label">
+            <i class="fas fa-volume-up"></i>
+            <span>消息提示音</span>
+          </div>
+          <div class="toggle-switch active" id="soundToggle"></div>
+        </div>
+        <div class="setting-item" onclick="toggleNotification()">
+          <div class="setting-label">
+            <i class="fas fa-bell"></i>
+            <span>桌面通知</span>
+          </div>
+          <div class="toggle-switch active" id="notificationToggle"></div>
+        </div>
+        <button class="logout-btn" onclick="window.location.href='/logout'" style="
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          gap: 8px;
+          width: 100%;
+          padding: 10px;
+          background: transparent;
+          border: 1px solid var(--border);
+          border-radius: 10px;
+          color: var(--text-secondary);
+          font-size: 13px;
+          cursor: pointer;
+          transition: all 0.2s;
+          margin-top: 8px;
+        ">
+          <i class="fas fa-sign-out-alt"></i>
+          <span>退出登录</span>
+        </button>
+      </div>
+    </aside>
+
+    <!-- 主聊天区域 -->
+    <main class="main-content">
+      <!-- 聊天头部 -->
+      <header class="chat-header">
+        <div class="chat-header-left">
+          <button class="header-btn" onclick="toggleSidebar()" style="display: none;" id="sidebarToggle">
+            <i class="fas fa-bars"></i>
+          </button>
+          <div class="chat-avatar">
+            <i class="fas fa-robot"></i>
+          </div>
+          <div class="chat-info">
+            <h2>智能客服助手</h2>
+            <div class="chat-status">
+              <div class="online-dot"></div>
+              <span>在线 · AI驱动</span>
+            </div>
+      </div>
+    </div>
+
+        <div class="chat-header-actions">
+          <button class="header-btn" id="searchBtn" onclick="toggleSearch()" title="搜索消息">
+            <i class="fas fa-search"></i>
+          </button>
+          <button class="header-btn" id="ratingBtn" onclick="openRatingModal()" title="服务评价">
+            <i class="fas fa-star"></i>
+          </button>
+          <div class="emotion-indicator" id="emotionIndicator">
+            <i class="fas fa-smile"></i>
+            <span id="emotionText">情绪正常</span>
+          </div>
+          <button class="header-btn" onclick="clearChat()" title="清空聊天">
+            <i class="fas fa-trash-alt"></i>
+          </button>
+        </div>
+      </header>
+
+      <!-- 搜索栏 -->
+      <div class="search-bar" id="searchBar">
+        <div class="search-input-wrapper">
+          <i class="fas fa-search"></i>
+          <input type="text" class="search-input" id="searchInput" placeholder="搜索聊天记录..." oninput="searchMessages()">
+                </div>
+                </div>
+
+      <!-- 系统公告 -->
+      <div style="padding: 12px 24px 0;" id="announcementArea">
+        <div class="announcement-panel" id="announcementPanel">
+          <div class="announcement-header">
+            <i class="fas fa-bullhorn announcement-icon"></i>
+            <span class="announcement-title">系统公告</span>
+                </div>
+          <div class="announcement-content" id="announcementContent">
+            欢迎使用智能客服系统！遇到任何问题都可以随时咨询，我们7x24小时为您服务。
+                </div>
+            </div>
+        </div>
+
+      <!-- 聊天消息 -->
+      <div class="chat-messages" id="chatMessages">
+        <!-- 欢迎屏幕 -->
+        <div class="welcome-screen" id="welcomeScreen">
+          <div class="welcome-icon">
+            <i class="fas fa-comments"></i>
+    </div>
+          <h2 class="welcome-title">嗨，{{ current_user.username }}</h2>
+          <p class="welcome-subtitle">我是您的专属智能客服助手，有什么可以帮到您的吗？</p>
+
+          <div class="quick-actions-grid">
+            <div class="quick-action-card" onclick="sendQuickMessage('查询我的订单状态')">
+              <div class="quick-action-icon blue">
+                <i class="fas fa-box-open"></i>
+              </div>
+              <div class="quick-action-title">查询订单</div>
+              <div class="quick-action-desc">查看物流信息</div>
+            </div>
+            <div class="quick-action-card" onclick="sendQuickMessage('如何申请退款？')">
+              <div class="quick-action-icon red">
+                <i class="fas fa-undo"></i>
+              </div>
+              <div class="quick-action-title">申请退款</div>
+              <div class="quick-action-desc">退款流程说明</div>
+            </div>
+            <div class="quick-action-card" onclick="sendQuickMessage('产品使用说明')">
+              <div class="quick-action-icon green">
+                <i class="fas fa-book"></i>
+              </div>
+              <div class="quick-action-title">使用指南</div>
+              <div class="quick-action-desc">产品操作帮助</div>
+            </div>
+            <div class="quick-action-card" onclick="sendQuickMessage('联系人工客服')">
+              <div class="quick-action-icon purple">
+                <i class="fas fa-headset"></i>
+              </div>
+              <div class="quick-action-title">转人工</div>
+              <div class="quick-action-desc">接入人工服务</div>
+            </div>
+            <div class="quick-action-card" onclick="sendQuickMessage('如何开发票？')">
+              <div class="quick-action-icon orange">
+                <i class="fas fa-file-invoice"></i>
+              </div>
+              <div class="quick-action-title">开发票</div>
+              <div class="quick-action-desc">发票申请流程</div>
+            </div>
+            <div class="quick-action-card" onclick="sendQuickMessage('投诉与建议')">
+              <div class="quick-action-icon cyan">
+                <i class="fas fa-edit"></i>
+              </div>
+              <div class="quick-action-title">投诉建议</div>
+              <div class="quick-action-desc">反馈您的意见</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 快捷回复 -->
+    <div class="quick-replies">
+        <div class="quick-chip" onclick="sendQuickMessage('查物流')">
+          <i class="fas fa-truck"></i> 物流查询
+        </div>
+        <div class="quick-chip" onclick="sendQuickMessage('修改密码')">
+          <i class="fas fa-key"></i> 修改密码
+        </div>
+        <div class="quick-chip" onclick="sendQuickMessage('商品质量有问题')">
+          <i class="fas fa-exclamation-triangle"></i> 质量问题
+        </div>
+        <div class="quick-chip" onclick="sendQuickMessage('催发货')">
+          <i class="fas fa-clock"></i> 催发货
+        </div>
+        <div class="quick-chip" onclick="sendQuickMessage('修改地址')">
+          <i class="fas fa-map-marker-alt"></i> 修改地址
+        </div>
+    </div>
+
+      <!-- 输入区域 -->
+      <div class="chat-input-area">
+        <div class="input-container">
+          <div class="input-tools">
+            <button class="tool-btn" id="emojiBtn" title="表情" onclick="toggleEmojiPicker()">
+              <i class="far fa-smile"></i>
+            </button>
+            <button class="tool-btn" id="voiceBtn" title="语音输入">
+        <i class="fas fa-microphone"></i>
+      </button>
+            <button class="tool-btn" id="imageBtn" title="发送图片" onclick="sendImage()">
+              <i class="fas fa-image"></i>
+            </button>
+          </div>
+
+          <div style="position: relative; flex: 1;">
+            <textarea
+              class="message-input"
+              id="messageInput"
+              placeholder="输入消息... (Enter 发送，Shift+Enter 换行)"
+              rows="1"
+            ></textarea>
+
+            <!-- 表情选择器 -->
+            <div class="emoji-picker" id="emojiPicker">
+              <div class="emoji-grid">
+                <div class="emoji-item" onclick="insertEmoji('😊')">😊</div>
+                <div class="emoji-item" onclick="insertEmoji('😂')">😂</div>
+                <div class="emoji-item" onclick="insertEmoji('😍')">😍</div>
+                <div class="emoji-item" onclick="insertEmoji('🥰')">🥰</div>
+                <div class="emoji-item" onclick="insertEmoji('😘')">😘</div>
+                <div class="emoji-item" onclick="insertEmoji('😎')">😎</div>
+                <div class="emoji-item" onclick="insertEmoji('🤔')">🤔</div>
+                <div class="emoji-item" onclick="insertEmoji('😅')">😅</div>
+                <div class="emoji-item" onclick="insertEmoji('😭')">😭</div>
+                <div class="emoji-item" onclick="insertEmoji('😤')">😤</div>
+                <div class="emoji-item" onclick="insertEmoji('🥺')">🥺</div>
+                <div class="emoji-item" onclick="insertEmoji('😢')">😢</div>
+                <div class="emoji-item" onclick="insertEmoji('😡')">😡</div>
+                <div class="emoji-item" onclick="insertEmoji('🤯')">🤯</div>
+                <div class="emoji-item" onclick="insertEmoji('👍')">👍</div>
+                <div class="emoji-item" onclick="insertEmoji('👎')">👎</div>
+              </div>
+            </div>
+      </div>
+
+          <button class="send-btn" id="sendBtn" onclick="sendMessage()">
+        <i class="fas fa-paper-plane"></i>
+      </button>
+    </div>
+      </div>
+    </main>
+  </div>
+
+  <!-- ========== 模态框 ========== -->
+
+  <!-- FAQ 模态框 -->
+  <div class="modal-overlay" id="faqModal">
+    <div class="modal">
+      <div class="modal-header">
+        <h3 class="modal-title">
+          <i class="fas fa-question-circle" style="color: var(--primary)"></i>
+          常见问题
+        </h3>
+        <button class="modal-close" onclick="closeModal('faqModal')">
+          <i class="fas fa-times"></i>
+        </button>
+      </div>
+      <div class="modal-body">
+        <div class="faq-detail-list">
+          <div class="faq-detail-item">
+            <div class="faq-detail-question" onclick="toggleFaqItem(this)">
+              <span>如何查询订单物流？</span>
+              <i class="fas fa-chevron-down faq-question-arrow"></i>
+            </div>
+            <div class="faq-detail-answer">
+              在对话框输入"查询订单"或"物流"，系统会自动显示您的订单信息，包括订单号、商品名称、当前状态和预计到货时间。
+            </div>
+          </div>
+          <div class="faq-detail-item">
+            <div class="faq-detail-question" onclick="toggleFaqItem(this)">
+              <span>申请退款的流程是什么？</span>
+              <i class="fas fa-chevron-down faq-question-arrow"></i>
+            </div>
+            <div class="faq-detail-answer">
+              点击左侧菜单的"退款申请"，或输入"申请退款"，填写退款原因后提交即可。管理员审核通过后会更新退款状态，退款通常在1-3个工作日内到账。
+            </div>
+          </div>
+          <div class="faq-detail-item">
+            <div class="faq-detail-question" onclick="toggleFaqItem(this)">
+              <span>如何联系人工客服？</span>
+              <i class="fas fa-chevron-down faq-question-arrow"></i>
+            </div>
+            <div class="faq-detail-answer">
+              当您连续发送负面情绪消息时，系统会自动转接人工。您也可以直接输入"转人工"或"人工客服"直接转接。
+            </div>
+          </div>
+          <div class="faq-detail-item">
+            <div class="faq-detail-question" onclick="toggleFaqItem(this)">
+              <span>如何修改收货地址？</span>
+              <i class="fas fa-chevron-down faq-question-arrow"></i>
+            </div>
+            <div class="faq-detail-answer">
+              如果订单还未发货，您可以提供订单号和新地址，我们会协助修改。若已发货，通常无法改址，您可以联系承运商或申请退换。
+            </div>
+          </div>
+          <div class="faq-detail-item">
+            <div class="faq-detail-question" onclick="toggleFaqItem(this)">
+              <span>可以开发票吗？</span>
+              <i class="fas fa-chevron-down faq-question-arrow"></i>
+            </div>
+            <div class="faq-detail-answer">
+              可以的！请提供订单号、发票抬头、税号和接收方式（邮箱/地址），我们核实后会为您开具电子发票。
+            </div>
+          </div>
+          <div class="faq-detail-item">
+            <div class="faq-detail-question" onclick="toggleFaqItem(this)">
+              <span>商品有质量问题怎么处理？</span>
+              <i class="fas fa-chevron-down faq-question-arrow"></i>
+            </div>
+            <div class="faq-detail-answer">
+              请提供问题照片/视频和订单号，我们会优先为您安排换货或退货方案。如需退款也可以在退款申请中提交原因。
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" onclick="closeModal('faqModal')">关闭</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 收藏模态框 -->
+  <div class="modal-overlay" id="favoriteModal">
+    <div class="modal">
+      <div class="modal-header">
+        <h3 class="modal-title">
+          <i class="fas fa-star" style="color: var(--warning)"></i>
+          我的收藏
+        </h3>
+        <button class="modal-close" onclick="closeModal('favoriteModal')">
+          <i class="fas fa-times"></i>
+        </button>
+      </div>
+      <div class="modal-body">
+        <div class="favorite-list" id="favoriteList">
+          <div style="text-align: center; color: var(--text-muted); padding: 40px 20px;">
+            <i class="fas fa-star" style="font-size: 40px; margin-bottom: 16px; opacity: 0.5;"></i>
+            <p>暂无收藏内容</p>
+            <p style="font-size: 12px; margin-top: 8px;">点击消息上的星标按钮即可收藏</p>
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" onclick="closeModal('favoriteModal')">关闭</button>
+      </div>
+    </div>
+      </div>
+
+  <!-- 客服评价模态框 -->
+  <div class="modal-overlay" id="ratingModal">
+    <div class="modal">
+      <div class="modal-header">
+        <h3 class="modal-title">
+          <i class="fas fa-star" style="color: var(--warning)"></i>
+          服务评价
+        </h3>
+        <button class="modal-close" onclick="closeModal('ratingModal')">
+          <i class="fas fa-times"></i>
+        </button>
+        </div>
+      <div class="modal-body">
+        <div style="text-align: center;">
+          <p style="font-size: 14px; color: var(--text-secondary); margin-bottom: 20px;">
+            感谢您的使用，请为本次服务打分
+          </p>
+          <div class="rating-stars" id="ratingStars">
+            <i class="fas fa-star star" data-rating="1"></i>
+            <i class="fas fa-star star" data-rating="2"></i>
+            <i class="fas fa-star star" data-rating="3"></i>
+            <i class="fas fa-star star" data-rating="4"></i>
+            <i class="fas fa-star star" data-rating="5"></i>
+          </div>
+          <p class="rating-text" id="ratingText">请选择评分</p>
+          <div class="form-group" style="margin-top: 20px;">
+            <label class="form-label">评价建议（可选）</label>
+            <textarea class="form-input form-textarea" id="ratingComment" placeholder="请分享您的建议或意见..."></textarea>
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" onclick="closeModal('ratingModal')">稍后评价</button>
+        <button class="btn btn-primary" onclick="submitRating()">提交评价</button>
+      </div>
+        </div>
+      </div>
+
+  <!-- 个人中心模态框 -->
+  <div class="modal-overlay" id="profileModal">
+    <div class="modal">
+      <div class="modal-header">
+        <h3 class="modal-title">
+          <i class="fas fa-user-circle" style="color: var(--primary)"></i>
+          个人中心
+        </h3>
+        <button class="modal-close" onclick="closeModal('profileModal')">
+          <i class="fas fa-times"></i>
+        </button>
+      </div>
+      <div class="modal-body">
+        <!-- 用户画像 -->
+        <div class="persona-panel" id="personaPanel">
+          <div class="stats-title">
+            <i class="fas fa-id-card"></i> 用户画像
+          </div>
+          <div class="persona-tags" id="personaTags">
+            <span class="persona-tag">新用户</span>
+          </div>
+          <div class="persona-summary" id="personaSummary">
+            暂无详细画像
+          </div>
+        </div>
+
+        <!-- 退款记录 -->
+        <div style="margin-top: 16px;">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+            <span style="font-size: 14px; font-weight: 600; color: var(--text-primary);">我的退款记录</span>
+            <button class="btn btn-secondary" style="padding: 6px 12px; font-size: 12px;" onclick="loadRefundList()">
+              <i class="fas fa-sync-alt"></i> 刷新
+            </button>
+          </div>
+          <div class="refund-list" id="refundList">
+            <div style="text-align: center; color: var(--text-muted); padding: 20px;">
+              暂无退款记录
+            </div>
+          </div>
+        </div>
+
+        <hr style="border: none; border-top: 1px solid var(--border); margin: 20px 0;">
+
+        <!-- 修改密码 -->
+        <div style="font-size: 14px; font-weight: 600; color: var(--text-primary); margin-bottom: 12px;">
+          <i class="fas fa-key" style="margin-right: 6px;"></i> 修改密码
+        </div>
+        <div id="passwordMsg" style="margin-bottom: 12px; display: none;"></div>
+        <div class="form-group">
+          <label class="form-label">原密码</label>
+          <input type="password" class="form-input" id="oldPassword" placeholder="请输入原密码">
+        </div>
+        <div class="form-group">
+          <label class="form-label">新密码（至少 6 位）</label>
+          <input type="password" class="form-input" id="newPassword" placeholder="请设置新密码">
+        </div>
+        <div class="form-group">
+          <label class="form-label">确认新密码</label>
+          <input type="password" class="form-input" id="confirmPassword" placeholder="再次输入新密码">
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" onclick="closeModal('profileModal')">关闭</button>
+        <button class="btn btn-primary" onclick="submitChangePassword()">
+          <i class="fas fa-save"></i> 保存修改
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 退款申请模态框 -->
+  <div class="modal-overlay" id="refundModal">
+    <div class="modal">
+      <div class="modal-header">
+        <h3 class="modal-title">
+          <i class="fas fa-undo" style="color: var(--danger)"></i>
+          申请退款
+        </h3>
+        <button class="modal-close" onclick="closeModal('refundModal')">
+          <i class="fas fa-times"></i>
+        </button>
+      </div>
+      <div class="modal-body">
+        <div id="refundMsg" style="margin-bottom: 12px; display: none;"></div>
+        <div class="form-group">
+          <label class="form-label">关联订单（可选）</label>
+          <select class="form-input form-select" id="refundOrderSelect">
+        <option value="">— 不指定订单 —</option>
+      </select>
+        </div>
+        <div class="form-group">
+          <label class="form-label">退款原因 <span style="color: var(--danger);">*</span></label>
+          <textarea
+            class="form-input form-textarea"
+            id="refundReason"
+            placeholder="请详细描述退款原因，如：商品损坏、与描述不符等..."
+          ></textarea>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" onclick="closeModal('refundModal')">取消</button>
+        <button class="btn btn-primary" onclick="submitRefund()">
+          <i class="fas fa-paper-plane"></i> 提交申请
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 订单列表模态框 -->
+  <div class="modal-overlay" id="orderModal">
+    <div class="modal">
+      <div class="modal-header">
+        <h3 class="modal-title">
+          <i class="fas fa-box" style="color: var(--info)"></i>
+          我的订单
+        </h3>
+        <button class="modal-close" onclick="closeModal('orderModal')">
+          <i class="fas fa-times"></i>
+        </button>
+      </div>
+      <div class="modal-body">
+        <div id="orderListContent">
+          <div style="text-align: center; color: var(--text-muted); padding: 20px;">
+            加载中...
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Toast 提示 -->
+  <div class="toast" id="toast"></div>
+
+  <!-- ========== JavaScript ========== -->
+  <script>
+    // ==========================================
+    // 状态变量
+    // ==========================================
+    const chatMessages = document.getElementById('chatMessages');
+    const messageInput = document.getElementById('messageInput');
+    const sendBtn = document.getElementById('sendBtn');
+    const welcomeScreen = document.getElementById('welcomeScreen');
+    const toast = document.getElementById('toast');
+    const emotionIndicator = document.getElementById('emotionIndicator');
+
+    let lastId = 0;
+    let socketConnected = false;
+    let isIntervention = false;
+    let profileOrders = [];
+    let favorites = JSON.parse(localStorage.getItem('chatFavorites') || '[]');
+    let currentRating = 0;
+    let currentRatingMessageId = null;
+    let soundEnabled = true;
+    let notificationEnabled = true;
+    let searchVisible = false;
+    let allMessages = [];
+
+    // 获取当前用户ID
+    const currentUserId = {{ current_user.id }};
+
+    // Socket.IO 连接
+    const socket = io({
+      transports: ['websocket', 'polling'],
+      reconnection: true,
+      reconnectionDelay: 1000,
+      reconnectionAttempts: 10
+    });
+
+    socket.on('connect', () => {
+      console.log('Socket.IO 已连接');
+      socketConnected = true;
+      socket.emit('join', { type: 'user', user_id: currentUserId });
+    });
+
+    socket.on('disconnect', () => {
+      console.log('Socket.IO 连接断开');
+      socketConnected = false;
+      showToast('连接已断开，正在重连...');
+    });
+
+    socket.on('reconnect', () => {
+      console.log('Socket.IO 已重连');
+      socket.emit('join', { type: 'user', user_id: currentUserId });
+      showToast('已重新连接');
+    });
+
+    // 监听新消息（仅处理 HTTP 响应之外的独立推送，如管理员回复、其他用户消息等）
+    socket.on('new_message', (data) => {
+      console.log('收到 SocketIO 新消息:', data);
+
+      // 记录 SocketIO 已推送的最新消息 ID，用于 sendMessage() 的超时回退判断
+      if (data.id) {
+        if (!window._lastSocketMsgId) window._lastSocketMsgId = 0;
+        if (data.id > window._lastSocketMsgId) {
+          window._lastSocketMsgId = data.id;
+        }
+      }
+
+      // 去重：如果 HTTP 响应已记录过同一消息，跳过渲染
+      if (data.id && window._lastRecordId && data.id <= window._lastRecordId) {
+        console.log('跳过重复消息:', data.id);
+        return;
+      }
+
+      removeTyping();
+      hideWelcomeScreen();
+
+      if (data.reply && data.reply.trim()) {
+        addMessage({
+          side: 'bot',
+          text: (data.is_admin_reply ? `**[客服]** ${data.reply}` : data.reply),
+          sender: (data.is_admin_reply ? '人工客服' : 'AI助手'),
+          emotion: data.emotion,
+          isAdmin: !!data.is_admin_reply,
+          recordId: (data.is_admin_reply ? null : data.id),
+          feedback: data.feedback || 0,
+          timestamp: data.timestamp
+        });
+
+        if (data.id && data.id > lastId) lastId = data.id;
+        if (data.id && !window._lastRecordId || (window._lastRecordId < data.id)) {
+          window._lastRecordId = data.id;
+        }
+
+        // 播放提示音
+        if (!data.is_admin_reply && soundEnabled) {
+          playNotificationSound();
+        }
+
+        // 桌面通知
+        if (notificationEnabled && !document.hasFocus()) {
+          showNotification('新消息', data.reply.substring(0, 50));
+        }
+
+        // 语音合成
+        try {
+          if (!data.is_admin_reply && data.should_speak) {
+            speak(data.reply);
+          }
+        } catch (e) { /* ignore speech errors */ }
+      }
+
+      if (typeof data.intervention !== 'undefined') {
+        setIntervention(data.intervention);
+      }
+
+      sendBtn.disabled = false;
+    });
+
+    // 监听订单卡片
+    socket.on('order_cards', (data) => {
+      if (data.orders && data.orders.length > 0) {
+        renderOrderCards(data.orders);
+      }
+    });
+
+    // ==========================================
+    // 工具函数
+    // ==========================================
+    function showToast(text) {
+      toast.textContent = text;
+      toast.classList.add('show');
+      setTimeout(() => toast.classList.remove('show'), 2000);
+    }
+
+    function escapeHtml(str) {
+      return (str ?? '')
+        .replaceAll('&', '&amp;')
+        .replaceAll('<', '&lt;')
+        .replaceAll('>', '&gt;');
+    }
+
+    function scrollToBottom() {
+      chatMessages.scrollTop = chatMessages.scrollHeight;
+    }
+
+    function formatTime(ts) {
+        if (!ts) return '';
+        let timeString = ts;
+        if (typeof timeString === 'string' && !timeString.includes('Z') && !timeString.includes('+')) {
+            timeString += 'Z';
+        }
+        const date = new Date(timeString);
+        if (isNaN(date.getTime())) return ts;
+        const month = (date.getMonth() + 1).toString().padStart(2, '0');
+        const day = date.getDate().toString().padStart(2, '0');
+        const hour = date.getHours().toString().padStart(2, '0');
+        const minute = date.getMinutes().toString().padStart(2, '0');
+        return `${month}-${day} ${hour}:${minute}`;
+    }
+
+    function setEmotionTheme(emotion) {
+      const e = (emotion || 'neutral').toLowerCase();
+      document.body.className = `emotion-${e}`;
+
+      const emotionMap = {
+        'happy': { icon: 'fa-smile-beam', text: '心情愉快', class: 'happy' },
+        'sad': { icon: 'fa-sad-tear', text: '有些难过', class: 'sad' },
+        'angry': { icon: 'fa-angry', text: '情绪激动', class: 'angry' },
+        'fear': { icon: 'fa-flushed', text: '感到担忧', class: 'fear' },
+        'surprise': { icon: 'fa-surprise', text: '有些惊讶', class: 'surprise' },
+        'neutral': { icon: 'fa-smile', text: '情绪正常', class: '' }
+      };
+
+      const info = emotionMap[e] || emotionMap['neutral'];
+      emotionIndicator.className = `emotion-indicator ${info.class}`;
+      emotionIndicator.innerHTML = `<i class="fas ${info.icon}"></i><span>${info.text}</span>`;
+      document.getElementById('emotionText').textContent = info.text;
+
+      // 更新侧边栏心情
+      const moodEmojiMap = {
+        'happy': '😊', 'sad': '😢', 'angry': '😤',
+        'fear': '😨', 'surprise': '😲', 'neutral': '😊'
+      };
+      document.getElementById('moodEmoji').textContent = moodEmojiMap[e] || '😊';
+      document.getElementById('moodText').textContent = info.text;
+    }
+
+    function setIntervention(flag) {
+      isIntervention = !!flag;
+      if (isIntervention) {
+        emotionIndicator.className = 'emotion-indicator angry';
+        emotionIndicator.innerHTML = '<i class="fas fa-exclamation-triangle"></i><span>人工介入中</span>';
+      }
+    }
+
+    function hideWelcomeScreen() {
+      if (welcomeScreen) {
+        welcomeScreen.style.display = 'none';
+      }
+    }
+
+    // ==========================================
+    // 播放提示音
+    // ==========================================
+    function playNotificationSound() {
+      try {
+        const audio = new Audio('data:audio/wav;base64,UklGRnoGAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQoGAACBhYqFbF1fdJivrJBhNjVgodDbq2EcBj+a2teleQAAAABGiJCNjJGKhoJ6cXJwcHBvb25tbGtqaWZkYmBfXl1cW1tZWFdXVlZVVlZWVlZVVlZWVlZVVlZWVlZVVlZWVlZVVlZWVlZVVlZWVlZVVlZWVlZVVlZWVlZVVlZWVlZVVlZWVlZVVlZWVlZVVlZWVlZVVlZWVlZVVlZWVlZVVlZWVlZVVlZWVlZVVlZWVlZVVlZWVlZVVlZWVlZVVlZWVlZVVlZWVlZVVlZWVlZVVlZWVlZVVlZWVlZVVlZWVlZVVgAAAA==');
+        audio.volume = 0.3;
+        audio.play().catch(() => {});
+      } catch (e) {}
+    }
+
+    // ==========================================
+    // 桌面通知
+    // ==========================================
+    function showNotification(title, body) {
+      if ('Notification' in window && Notification.permission === 'granted') {
+        new Notification(title, { body, icon: '/static/icon.png' });
+      }
+    }
+
+    function requestNotificationPermission() {
+      if ('Notification' in window && Notification.permission === 'default') {
+        Notification.requestPermission();
+      }
+    }
+
+    // ==========================================
+    // 主题切换
+    // ==========================================
+    function toggleTheme() {
+      const toggle = document.getElementById('themeToggle');
+      toggle.classList.toggle('active');
+
+      if (toggle.classList.contains('active')) {
+        document.documentElement.setAttribute('data-theme', 'dark');
+        localStorage.setItem('theme', 'dark');
+      } else {
+        document.documentElement.removeAttribute('data-theme');
+        localStorage.setItem('theme', 'light');
+      }
+    }
+
+    // 恢复主题设置
+    const savedTheme = localStorage.getItem('theme');
+    if (savedTheme === 'dark') {
+      document.getElementById('themeToggle').classList.add('active');
+      document.documentElement.setAttribute('data-theme', 'dark');
+    }
+
+    // ==========================================
+    // 声音切换
+    // ==========================================
+    function toggleSound() {
+      const toggle = document.getElementById('soundToggle');
+      toggle.classList.toggle('active');
+      soundEnabled = toggle.classList.contains('active');
+      localStorage.setItem('soundEnabled', soundEnabled);
+    }
+
+    // 恢复声音设置
+    const savedSound = localStorage.getItem('soundEnabled');
+    if (savedSound === 'false') {
+      document.getElementById('soundToggle').classList.remove('active');
+      soundEnabled = false;
+    }
+
+    // ==========================================
+    // 通知切换
+    // ==========================================
+    function toggleNotification() {
+      const toggle = document.getElementById('notificationToggle');
+      toggle.classList.toggle('active');
+      notificationEnabled = toggle.classList.contains('active');
+
+      if (notificationEnabled) {
+        requestNotificationPermission();
+      }
+
+      localStorage.setItem('notificationEnabled', notificationEnabled);
+    }
+
+    // 恢复通知设置
+    const savedNotification = localStorage.getItem('notificationEnabled');
+    if (savedNotification === 'false') {
+      document.getElementById('notificationToggle').classList.remove('active');
+      notificationEnabled = false;
+    } else {
+      requestNotificationPermission();
+    }
+
+    // ==========================================
+    // 搜索功能
+    // ==========================================
+    function toggleSearch() {
+      searchVisible = !searchVisible;
+      const searchBar = document.getElementById('searchBar');
+      const searchBtn = document.getElementById('searchBtn');
+
+      if (searchVisible) {
+        searchBar.classList.add('active');
+        searchBtn.classList.add('active');
+        document.getElementById('searchInput').focus();
+      } else {
+        searchBar.classList.remove('active');
+        searchBtn.classList.remove('active');
+        document.getElementById('searchInput').value = '';
+        resetMessages();
+      }
+    }
+
+    function searchMessages() {
+      const query = document.getElementById('searchInput').value.toLowerCase().trim();
+
+      if (!query) {
+        resetMessages();
+        return;
+      }
+
+      const messages = chatMessages.querySelectorAll('.message');
+      messages.forEach(msg => {
+        const text = msg.querySelector('.message-bubble')?.textContent?.toLowerCase() || '';
+        if (text.includes(query)) {
+          msg.style.display = 'flex';
+          msg.style.background = 'rgba(13, 148, 136, 0.12)';
+        } else {
+          msg.style.display = 'none';
+        }
+      });
+    }
+
+    function resetMessages() {
+      const messages = chatMessages.querySelectorAll('.message');
+      messages.forEach(msg => {
+        msg.style.display = 'flex';
+        msg.style.background = '';
+      });
+    }
+
+    // ==========================================
+    // 侧边栏切换
+    // ==========================================
+    function toggleSidebar() {
+      const sidebar = document.getElementById('sidebar');
+      sidebar.classList.toggle('open');
+    }
+
+    function switchTab(tab) {
+      // 移除所有 active 状态
+      document.querySelectorAll('.menu-item').forEach(item => item.classList.remove('active'));
+      document.getElementById(`menu${tab.charAt(0).toUpperCase() + tab.slice(1)}`).classList.add('active');
+
+      if (tab === 'chat') {
+        document.getElementById('faqQuick').style.display = 'block';
+      }
+    }
+
+    // ==========================================
+    // FAQ 功能
+    // ==========================================
+    function toggleFaqItem(element) {
+      const item = element.parentElement;
+      item.classList.toggle('open');
+    }
+
+    // ==========================================
+    // 收藏功能
+    // ==========================================
+    function loadFavorites() {
+      const badge = document.getElementById('favoriteBadge');
+      const list = document.getElementById('favoriteList');
+
+      if (favorites.length === 0) {
+        badge.style.display = 'none';
+        list.innerHTML = `
+          <div style="text-align: center; color: var(--text-muted); padding: 40px 20px;">
+            <i class="fas fa-star" style="font-size: 40px; margin-bottom: 16px; opacity: 0.5;"></i>
+            <p>暂无收藏内容</p>
+            <p style="font-size: 12px; margin-top: 8px;">点击消息上的星标按钮即可收藏</p>
+          </div>
+        `;
+        return;
+      }
+
+      badge.style.display = 'block';
+      badge.textContent = favorites.length;
+
+      list.innerHTML = '';
+      favorites.forEach((fav, index) => {
+        const item = document.createElement('div');
+        item.className = 'favorite-item';
+        item.innerHTML = `
+          <i class="fas fa-star" style="color: var(--warning);"></i>
+          <div class="favorite-content">
+            <div class="favorite-text">${escapeHtml(fav.text)}</div>
+            <div class="favorite-time">${fav.time}</div>
+          </div>
+          <i class="fas fa-times favorite-delete" onclick="deleteFavorite(${index})"></i>
+        `;
+        item.onclick = () => {
+          messageInput.value = fav.text;
+          closeModal('favoriteModal');
+          sendMessage();
+        };
+        list.appendChild(item);
+      });
+    }
+
+    function addFavorite(text, time) {
+      favorites.unshift({ text, time });
+      if (favorites.length > 50) favorites.pop();
+      localStorage.setItem('chatFavorites', JSON.stringify(favorites));
+      loadFavorites();
+      showToast('已添加到收藏');
+    }
+
+    function deleteFavorite(index) {
+      favorites.splice(index, 1);
+      localStorage.setItem('chatFavorites', JSON.stringify(favorites));
+      loadFavorites();
+      showToast('已取消收藏');
+    }
+
+    // ==========================================
+    // 客服评价功能
+    // ==========================================
+    function openRatingModal() {
+      currentRating = 0;
+      document.querySelectorAll('.star').forEach(star => star.classList.remove('active'));
+      document.getElementById('ratingText').textContent = '请选择评分';
+      document.getElementById('ratingComment').value = '';
+      openModal('ratingModal');
+    }
+
+    document.querySelectorAll('.star').forEach(star => {
+      star.addEventListener('click', function() {
+        const rating = parseInt(this.dataset.rating);
+        currentRating = rating;
+
+        document.querySelectorAll('.star').forEach((s, i) => {
+          if (i < rating) {
+            s.classList.add('active');
+          } else {
+            s.classList.remove('active');
+          }
+        });
+
+        const texts = ['', '非常不满意', '不满意', '一般', '满意', '非常满意'];
+        document.getElementById('ratingText').textContent = texts[rating];
+      });
+    });
+
+    async function submitRating() {
+      if (currentRating === 0) {
+        showToast('请先选择评分');
+        return;
+      }
+
+      const comment = document.getElementById('ratingComment').value.trim();
+
+      try {
+        const body = { rating: currentRating };
+        if (comment) body.suggestion = comment;
+        if (currentRatingMessageId) body.message_id = currentRatingMessageId;
+
+        const res = await fetch('/api/rating', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(body)
+        });
+        const data = await res.json();
+
+        if (data.status === 'success') {
+          showToast('感谢您的评价！');
+        } else {
+          showToast(data.msg || '评价提交失败');
+        }
+      } catch (e) {
+        showToast('网络异常，请稍后再试');
+      }
+      closeModal('ratingModal');
+    }
+
+    // ==========================================
+    // 模态框
+    // ==========================================
+    function openModal(id) {
+      document.getElementById(id).classList.add('show');
+
+      if (id === 'profileModal') {
+        loadProfileData();
+        loadRefundList();
+      } else if (id === 'orderModal') {
+        loadOrderList();
+      } else if (id === 'refundModal') {
+        loadOrderSelect();
+      } else if (id === 'favoriteModal') {
+        loadFavorites();
+      }
+    }
+
+    function closeModal(id) {
+      document.getElementById(id).classList.remove('show');
+    }
+
+    // 点击遮罩关闭
+    document.querySelectorAll('.modal-overlay').forEach(mask => {
+      mask.addEventListener('click', e => {
+        if (e.target === mask) mask.classList.remove('show');
+      });
+    });
+
+    // ==========================================
+    // 个人中心
+    // ==========================================
+    async function loadProfileData() {
+        try {
+            const res = await fetch('/api/user/profile_data');
+            const data = await res.json();
+
+        // 更新画像
+        const tagsEl = document.getElementById('personaTags');
+        const summaryEl = document.getElementById('personaSummary');
+
+        if (data.tags && data.tags.length) {
+          tagsEl.innerHTML = data.tags.map(tag =>
+            `<span class="persona-tag">${escapeHtml(tag)}</span>`
+          ).join('');
+        } else {
+          tagsEl.innerHTML = '<span class="persona-tag">新用户</span>';
+        }
+
+        summaryEl.textContent = data.summary || '暂无详细画像';
+            profileOrders = data.orders || [];
+      } catch (e) {
+        console.error('加载用户资料失败:', e);
+      }
+    }
+
+    async function loadRefundList() {
+      const el = document.getElementById('refundList');
+      el.innerHTML = '<div style="text-align: center; color: var(--text-muted); padding: 20px;">加载中...</div>';
+
+        try {
+            const res = await fetch('/api/refund/list');
+            const data = await res.json();
+            const list = data.refunds || [];
+
+            if (!list.length) {
+          el.innerHTML = '<div style="text-align: center; color: var(--text-muted); padding: 20px;">暂无退款记录</div>';
+                return;
+            }
+
+            el.innerHTML = '';
+            list.forEach(r => {
+                const statusClass = r.status === '已批准' ? 'approved' : r.status === '已拒绝' ? 'rejected' : 'pending';
+                const div = document.createElement('div');
+                div.className = 'refund-item';
+                div.innerHTML = `
+            <div class="refund-item-header">
+              <span class="refund-item-order">${escapeHtml(r.order_info || '无关联订单')}</span>
+                        <span class="refund-status ${statusClass}">${escapeHtml(r.status)}</span>
+                    </div>
+            <div class="refund-item-reason">${escapeHtml(r.reason)}</div>
+            ${r.admin_note ? `<div class="refund-item-note">客服备注：${escapeHtml(r.admin_note)}</div>` : ''}
+            <div class="refund-item-date">${escapeHtml(r.created_at)}</div>
+          `;
+                el.appendChild(div);
+            });
+      } catch (e) {
+        el.innerHTML = '<div style="text-align: center; color: var(--danger); padding: 20px;">加载失败</div>';
+        }
+    }
+
+    async function submitChangePassword() {
+      const oldPw = document.getElementById('oldPassword').value;
+      const newPw = document.getElementById('newPassword').value;
+      const confirmPw = document.getElementById('confirmPassword').value;
+      const msgEl = document.getElementById('passwordMsg');
+
+      msgEl.style.display = 'none';
+
+      if (!oldPw || !newPw || !confirmPw) {
+        msgEl.textContent = '请填写所有字段';
+        msgEl.style.display = 'block';
+        msgEl.style.color = 'var(--danger)';
+        return;
+      }
+
+      if (newPw !== confirmPw) {
+        msgEl.textContent = '两次新密码不一致';
+        msgEl.style.display = 'block';
+        msgEl.style.color = 'var(--danger)';
+        return;
+      }
+
+      if (newPw.length < 6) {
+        msgEl.textContent = '新密码不能少于 6 位';
+        msgEl.style.display = 'block';
+        msgEl.style.color = 'var(--danger)';
+        return;
+      }
+
+        try {
+            const res = await fetch('/api/user/change_password', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ old_password: oldPw, new_password: newPw })
+            });
+            const data = await res.json();
+
+            if (data.status === 'success') {
+          msgEl.textContent = '密码修改成功！';
+          msgEl.style.display = 'block';
+          msgEl.style.color = 'var(--success)';
+          document.getElementById('oldPassword').value = '';
+          document.getElementById('newPassword').value = '';
+          document.getElementById('confirmPassword').value = '';
+            } else {
+          msgEl.textContent = data.msg || '修改失败';
+          msgEl.style.display = 'block';
+          msgEl.style.color = 'var(--danger)';
+        }
+      } catch (e) {
+        msgEl.textContent = '网络异常';
+        msgEl.style.display = 'block';
+        msgEl.style.color = 'var(--danger)';
+      }
+    }
+
+    // ==========================================
+    // 退款申请
+    // ==========================================
+    async function loadOrderSelect() {
+      const select = document.getElementById('refundOrderSelect');
+      select.innerHTML = '<option value="">— 加载中... —</option>';
+
+      document.getElementById('refundReason').value = '';
+      document.getElementById('refundMsg').style.display = 'none';
+
+      // 独立从 API 加载订单列表，不依赖 profileModal
+      let orders = [];
+      if (profileOrders.length) {
+        orders = profileOrders;
+      } else {
+        try {
+          const res = await fetch('/api/user/profile_data');
+          const data = await res.json();
+          orders = data.orders || [];
+          profileOrders = orders;
+        } catch (e) {
+          console.error('加载订单列表失败:', e);
+        }
+      }
+
+      select.innerHTML = '<option value="">— 不指定订单 —</option>';
+      orders.forEach(o => {
+        const opt = document.createElement('option');
+        opt.value = o.id;
+        opt.textContent = `${o.item}（${o.number}）`;
+        select.appendChild(opt);
+      });
+    }
+
+    async function submitRefund() {
+      const orderId = document.getElementById('refundOrderSelect').value;
+      const reason = document.getElementById('refundReason').value.trim();
+      const msgEl = document.getElementById('refundMsg');
+
+      msgEl.style.display = 'none';
+
+      if (!reason) {
+        msgEl.textContent = '请填写退款原因';
+        msgEl.style.display = 'block';
+        msgEl.style.color = 'var(--danger)';
+        return;
+      }
+
+        try {
+            const res = await fetch('/api/refund/apply', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            order_id: orderId ? parseInt(orderId) : null,
+            reason
+          })
+            });
+            const data = await res.json();
+
+            if (data.status === 'success') {
+          msgEl.textContent = data.msg;
+          msgEl.style.display = 'block';
+          msgEl.style.color = 'var(--success)';
+                setTimeout(() => closeModal('refundModal'), 2000);
+            } else {
+          msgEl.textContent = data.msg || '提交失败';
+          msgEl.style.display = 'block';
+          msgEl.style.color = 'var(--danger)';
+        }
+      } catch (e) {
+        msgEl.textContent = '网络异常';
+        msgEl.style.display = 'block';
+        msgEl.style.color = 'var(--danger)';
+      }
+    }
+
+    // ==========================================
+    // 订单列表
+    // ==========================================
+    async function loadOrderList() {
+      const el = document.getElementById('orderListContent');
+      el.innerHTML = '<div style="text-align: center; color: var(--text-muted); padding: 20px;">加载中...</div>';
+
+      try {
+        const res = await fetch('/api/user/profile_data');
+        const data = await res.json();
+        const orders = data.orders || [];
+
+        if (!orders.length) {
+          el.innerHTML = '<div style="text-align: center; color: var(--text-muted); padding: 20px;">暂无订单</div>';
+          return;
+        }
+
+        el.innerHTML = '';
+        orders.forEach(o => {
+          const div = document.createElement('div');
+          div.className = 'order-card';
+          div.innerHTML = `
+            <div class="order-card-header">
+              <span class="order-number">${escapeHtml(o.number)}</span>
+              <span class="order-arrival">${escapeHtml(o.arrival)} 预计</span>
+            </div>
+            <div class="order-card-body">
+              <div class="order-product">${escapeHtml(o.item)}</div>
+              <div class="order-status-row">
+                <div class="status-dot ${o.status === '已送达' ? 'delivered' : 'shipped'}"></div>
+                <span class="order-status-text">${escapeHtml(o.status)}</span>
+              </div>
+              <div class="order-progress">
+                <div class="order-progress-bar" style="width: ${o.status === '已送达' ? '100' : '60'}%"></div>
+              </div>
+              ${o.status !== '已送达' && o.status !== '已退款' ? `
+                <button class="confirm-btn" onclick="confirmOrder(${o.id}, this)">确认收货</button>
+              ` : ''}
+            </div>
+          `;
+          el.appendChild(div);
+        });
+      } catch (e) {
+        el.innerHTML = '<div style="text-align: center; color: var(--danger); padding: 20px;">加载失败</div>';
+      }
+    }
+
+    async function confirmOrder(orderId, btn) {
+      if (!confirm('确定已收到商品？')) return;
+
+        btn.disabled = true;
+      btn.textContent = '处理中...';
+
+        try {
+            const res = await fetch('/api/order/confirm', {
+                method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ order_id: orderId })
+            });
+            const data = await res.json();
+
+        if (res.ok) {
+          btn.textContent = '已完成';
+                showToast('收货成功！');
+          setTimeout(() => loadOrderList(), 1500);
+            } else {
+                btn.disabled = false;
+          btn.textContent = '确认收货';
+                showToast(data.msg || '操作失败');
+            }
+      } catch (e) {
+            btn.disabled = false;
+        btn.textContent = '确认收货';
+            showToast('网络错误');
+        }
+    }
+
+    // ==========================================
+    // 表情选择器
+    // ==========================================
+    function toggleEmojiPicker() {
+      const picker = document.getElementById('emojiPicker');
+      picker.classList.toggle('show');
+      document.getElementById('emojiBtn').classList.toggle('active');
+    }
+
+    function insertEmoji(emoji) {
+      messageInput.value += emoji;
+      messageInput.focus();
+      toggleEmojiPicker();
+      autoResizeInput();
+    }
+
+    // 点击其他地方关闭表情选择器
+    document.addEventListener('click', e => {
+      if (!e.target.closest('#emojiPicker') && !e.target.closest('#emojiBtn')) {
+        document.getElementById('emojiPicker').classList.remove('show');
+        document.getElementById('emojiBtn').classList.remove('active');
+      }
+    });
+
+    // ==========================================
+    // 语音输入
+    // ==========================================
+    let recognition = null;
+
+    function initVoiceInput() {
+      const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+      if (!SR) {
+        document.getElementById('voiceBtn').style.display = 'none';
+        return;
+      }
+
+      recognition = new SR();
+      recognition.lang = 'zh-CN';
+      recognition.continuous = false;
+      recognition.interimResults = false;
+
+      recognition.onstart = () => {
+        document.getElementById('voiceBtn').classList.add('active');
+        showToast('正在听...');
+      };
+
+      recognition.onend = () => {
+        document.getElementById('voiceBtn').classList.remove('active');
+      };
+
+      recognition.onresult = (event) => {
+        const text = event.results?.[0]?.[0]?.transcript || '';
+        if (text.trim()) {
+          messageInput.value = text.trim();
+          autoResizeInput();
+          sendMessage();
+        }
+      };
+
+      recognition.onerror = (event) => {
+        console.error('语音识别错误:', event.error);
+        document.getElementById('voiceBtn').classList.remove('active');
+      };
+
+      document.getElementById('voiceBtn').addEventListener('click', () => {
+        recognition.start();
+      });
+    }
+
+    // ==========================================
+    // 发送图片（模拟）
+    // ==========================================
+    function sendImage() {
+      showToast('图片功能开发中...');
+    }
+
+    // ==========================================
+    // 发送消息
+    // ==========================================
+    function sendQuickMessage(text) {
+      messageInput.value = text;
+      autoResizeInput();
+      sendMessage();
+    }
+
+    function autoResizeInput() {
+      messageInput.style.height = 'auto';
+      messageInput.style.height = Math.min(messageInput.scrollHeight, 120) + 'px';
+    }
+
+    messageInput.addEventListener('input', autoResizeInput);
+
+    messageInput.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' && !e.shiftKey) {
+        e.preventDefault();
+        sendMessage();
+      }
+    });
+
+    async function sendMessage() {
+      const text = messageInput.value.trim();
+        if (!text) return;
+
+        if (!socketConnected) {
+            console.warn('WebSocket 未连接，使用轮询模式');
+            await sendMessagePolling(text);
+            return;
+        }
+
+      hideWelcomeScreen();
+
+      // 添加用户消息
+      addMessage({
+          side: 'user',
+          text,
+        sender: '我',
+        timestamp: new Date().toISOString()
+      });
+
+      messageInput.value = '';
+      autoResizeInput();
+        sendBtn.disabled = true;
+        addTyping();
+
+        try {
+            const res = await fetch('/api/chat', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ text })
+            });
+            const data = await res.json();
+
+            if (!res.ok) {
+                removeTyping();
+                sendBtn.disabled = false;
+                showToast('发送失败：' + (data.message || data.status || res.status));
+                return;
+            }
+
+            // 记录已处理的 record_id，避免 SocketIO new_message 事件重复渲染
+            if (data.record_id) {
+                if (!window._lastRecordId) window._lastRecordId = 0;
+                if (data.record_id > window._lastRecordId) {
+                    window._lastRecordId = data.record_id;
+                }
+                if (data.record_id > lastId) lastId = data.record_id;
+            }
+
+            // bot 回复由 SocketIO new_message 事件统一渲染，HTTP 响应只做后处理
+            // 设置 500ms 超时：若延迟后仍未收到 SocketIO 推送，则从 HTTP 响应回退渲染
+            const socketTimeoutId = setTimeout(() => {
+                if (data.reply && data.reply.trim() &&
+                    (!window._lastSocketMsgId || window._lastSocketMsgId < (data.record_id || 0))) {
+                    removeTyping();
+                    addMessage({
+                        side: 'bot',
+                        text: data.reply,
+                        sender: 'AI助手',
+                        emotion: data.emotion,
+                        isAdmin: false,
+                        recordId: data.record_id,
+                        feedback: 0,
+                        timestamp: new Date().toISOString()
+                    });
+                    if (data.record_id > (window._lastRecordId || 0)) {
+                        window._lastRecordId = data.record_id;
+                    }
+                }
+                sendBtn.disabled = false;
+            }, 500);
+
+            // 非关键后处理：每个调用单独 try-catch 保护，防止任一异常触发"网络异常"
+            try { setEmotionTheme(data.emotion); } catch (e) { console.warn('setEmotionTheme error:', e); }
+            try {
+                if (data.orders_data && data.orders_data.length > 0) {
+                    renderOrderCards(data.orders_data);
+                }
+            } catch (e) { console.warn('renderOrderCards error:', e); }
+            try { setIntervention(data.intervention); } catch (e) { console.warn('setIntervention error:', e); }
+            try {
+                if (data.reply && data.reply.trim() && data.should_speak) {
+                    speak(data.reply);
+                }
+            } catch (e) { console.warn('speak error:', e); }
+
+            if (!data.reply && data.intervention) {
+                showToast('已转人工处理，请稍候...');
+            }
+
+        } catch (e) {
+            console.error('sendMessage fetch error:', e);
+            removeTyping();
+            sendBtn.disabled = false;
+            showToast('网络异常，请稍后重试');
+        }
+    }
+
+    async function sendMessagePolling(text) {
+      // 轮询模式下，SocketIO 不可用，直接使用 HTTP 响应渲染 bot 回复
+      hideWelcomeScreen();
+
+      addMessage({
+          side: 'user',
+          text,
+        sender: '我',
+        timestamp: new Date().toISOString()
+      });
+
+      messageInput.value = '';
+      autoResizeInput();
+        sendBtn.disabled = true;
+        addTyping();
+
+        try {
+            const res = await fetch('/api/chat', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ text })
+            });
+            const data = await res.json();
+
+            if (!res.ok) {
+                removeTyping();
+                sendBtn.disabled = false;
+                showToast('发送失败：' + (data.message || data.status || res.status));
+                return;
+            }
+
+            // 记录已处理的 record_id，避免后续轮询重复添加
+            if (data.record_id) {
+                if (!window._lastRecordId) window._lastRecordId = 0;
+                if (data.record_id > window._lastRecordId) {
+                    window._lastRecordId = data.record_id;
+                }
+                if (data.record_id > lastId) lastId = data.record_id;
+            }
+
+            removeTyping();
+            sendBtn.disabled = false;
+
+            // 轮询模式下无 SocketIO，直接从 HTTP 响应渲染 bot 回复
+            if (data.reply && data.reply.trim()) {
+                addMessage({
+                    side: 'bot',
+                    text: data.reply,
+                    sender: 'AI助手',
+                    emotion: data.emotion,
+                    isAdmin: false,
+                    recordId: data.record_id,
+                    feedback: 0,
+                    timestamp: new Date().toISOString()
+                });
+            }
+
+            // 非关键后处理：每个调用单独 try-catch 保护
+            try { setEmotionTheme(data.emotion); } catch (e) { console.warn('setEmotionTheme error (polling):', e); }
+            try { setIntervention(data.intervention); } catch (e) { console.warn('setIntervention error (polling):', e); }
+            try {
+                if (data.reply && data.reply.trim() && data.should_speak) {
+                    speak(data.reply);
+                }
+            } catch (e) { console.warn('speak error (polling):', e); }
+            try {
+                if (data.orders_data && data.orders_data.length > 0) {
+                    renderOrderCards(data.orders_data);
+                }
+            } catch (e) { console.warn('renderOrderCards error (polling):', e); }
+
+            // 轮询模式下仍需继续 poll 检查管理员回复等
+            setTimeout(poll, 1000);
+
+        } catch (e) {
+            console.error('sendMessagePolling fetch error:', e);
+            removeTyping();
+            sendBtn.disabled = false;
+            showToast('网络异常，请稍后重试');
+        }
+    }
+
+    async function poll() {
+      try {
+        const res = await fetch(`/api/get_messages?last_id=${lastId}`);
+        const data = await res.json();
+        if (!res.ok) return;
+
+        if (typeof data.intervention !== 'undefined') {
+          setIntervention(data.intervention);
+        }
+
+        // 初始化去重标记
+        if (!window._lastRecordId) window._lastRecordId = 0;
+
+        const msgs = data.messages || [];
+        for (const m of msgs) {
+          if (m.id > lastId) lastId = m.id;
+
+          // 去重：跳过 HTTP 响应已渲染过的消息
+          if (m.id && m.id <= window._lastRecordId) continue;
+
+          if (m.reply && m.reply.trim()) {
+            addMessage({
+              side: 'bot',
+              text: (m.is_admin_reply ? `**[客服]** ${m.reply}` : m.reply),
+              sender: (m.is_admin_reply ? '人工客服' : 'AI助手'),
+              emotion: m.emotion,
+              isAdmin: !!m.is_admin_reply,
+              recordId: (m.is_admin_reply ? null : m.id),
+              feedback: m.feedback || 0,
+              timestamp: m.timestamp
+            });
+            if (m.id > window._lastRecordId) window._lastRecordId = m.id;
+          }
+        }
+      } catch (e) {
+        // 轮询失败时静默处理，不做 toast 提示
+      }
+    }
+
+    // ==========================================
+    // 渲染消息
+    // ==========================================
+    function addMessage({ side, text, sender, emotion, isAdmin, recordId, feedback, timestamp }) {
+      const msg = document.createElement('div');
+      msg.className = `message ${side}`;
+
+      const avatarIcon = side === 'user' ? 'fa-user' : (isAdmin ? 'fa-headset' : 'fa-robot');
+
+      msg.innerHTML = `
+        <div class="message-avatar">
+          <i class="fas ${avatarIcon}"></i>
+        </div>
+        <div class="message-content">
+          <div class="message-meta">
+            <span class="message-sender">${escapeHtml(sender || '')}</span>
+            <span>${formatTime(timestamp)}</span>
+          </div>
+          <div class="message-bubble">
+            ${side === 'bot' ? marked.parse(text || '') : escapeHtml(text || '')}
+          </div>
+          ${side === 'bot' && emotion ? `
+            <span class="emotion-tag ${emotion}">
+              <i class="fas ${getEmotionIcon(emotion)}"></i>
+              ${getEmotionText(emotion)}
+            </span>
+          ` : ''}
+          ${side === 'bot' && recordId !== null ? `
+            <div class="message-actions">
+              <button class="action-btn ${feedback === 1 ? 'liked' : ''}" onclick="sendFeedback(${recordId}, 'like')" title="赞">
+                <i class="fas fa-thumbs-up"></i>
+              </button>
+              <button class="action-btn ${feedback === -1 ? 'disliked' : ''}" onclick="sendFeedback(${recordId}, 'dislike')" title="踩">
+                <i class="fas fa-thumbs-down"></i>
+              </button>
+              <button class="action-btn" onclick="toggleFavorite('${escapeHtml(text || '').replace(/'/g, "\\'")}', '${formatTime(timestamp)}')" title="收藏">
+                <i class="fas fa-star"></i>
+              </button>
+            </div>
+          ` : ''}
+        </div>
+      `;
+
+      chatMessages.appendChild(msg);
+      scrollToBottom();
+
+      // 保存到消息列表
+      allMessages.push({ side, text, sender, timestamp });
+    }
+
+    function getEmotionIcon(emotion) {
+      const map = {
+        'happy': 'fa-smile-beam',
+        'sad': 'fa-sad-tear',
+        'angry': 'fa-angry',
+        'fear': 'fa-flushed',
+        'surprise': 'fa-surprise',
+        'neutral': 'fa-smile'
+      };
+      return map[emotion] || 'fa-smile';
+    }
+
+    function getEmotionText(emotion) {
+      const map = {
+        'happy': '愉快',
+        'sad': '难过',
+        'angry': '生气',
+        'fear': '担忧',
+        'surprise': '惊讶',
+        'neutral': '平静'
+      };
+      return map[emotion] || '平静';
+    }
+
+    function addTyping() {
+      const typing = document.createElement('div');
+      typing.className = 'typing-indicator';
+      typing.id = 'typingIndicator';
+      typing.innerHTML = `
+        <div class="message-avatar">
+          <i class="fas fa-robot"></i>
+        </div>
+        <div class="typing-dots">
+          <div class="typing-dot"></div>
+          <div class="typing-dot"></div>
+          <div class="typing-dot"></div>
+        </div>
+      `;
+      chatMessages.appendChild(typing);
+      scrollToBottom();
+    }
+
+    function removeTyping() {
+      const typing = document.getElementById('typingIndicator');
+      if (typing) typing.remove();
+    }
+
+    // ==========================================
+    // 渲染订单卡片
+    // ==========================================
+    function renderOrderCards(orders) {
+      const container = document.createElement('div');
+      container.className = 'message';
+      container.innerHTML = `
+        <div class="message-avatar">
+          <i class="fas fa-box"></i>
+        </div>
+        <div class="message-content">
+          <div class="message-meta">
+            <span class="message-sender">订单信息</span>
+          </div>
+          <div class="order-cards-container" id="orderCardsContainer"></div>
+        </div>
+      `;
+
+      const cardsContainer = container.querySelector('#orderCardsContainer');
+      orders.forEach(order => {
+        const isDone = order.status === '已送达';
+        const card = document.createElement('div');
+        card.className = 'order-card';
+        card.innerHTML = `
+          <div class="order-card-header">
+            <span class="order-number">${escapeHtml(order.number)}</span>
+            <span class="order-arrival">${escapeHtml(order.arrival)} 预计</span>
+          </div>
+          <div class="order-card-body">
+            <div class="order-product">${escapeHtml(order.item)}</div>
+            <div class="order-status-row">
+              <div class="status-dot ${isDone ? 'delivered' : ''}"></div>
+              <span class="order-status-text">${escapeHtml(order.status)}</span>
+            </div>
+            <div class="order-progress">
+              <div class="order-progress-bar" style="width: ${isDone ? '100' : '60'}%"></div>
+            </div>
+            ${!isDone ? `
+              <button class="confirm-btn" onclick="confirmOrder(${order.id}, this)">确认收货</button>
+            ` : ''}
+          </div>
+        `;
+        cardsContainer.appendChild(card);
+      });
+
+      chatMessages.appendChild(container);
+      scrollToBottom();
+    }
+
+    // ==========================================
+    // 收藏功能
+    // ==========================================
+    function toggleFavorite(text, time) {
+      // 检查是否已收藏
+      const index = favorites.findIndex(f => f.text === text);
+      if (index !== -1) {
+        deleteFavorite(index);
+      } else {
+        addFavorite(text, time);
+      }
+    }
+
+    // ==========================================
+    // 反馈
+    // ==========================================
+    async function sendFeedback(recordId, action) {
+      try {
+        const res = await fetch('/api/feedback', {
+            method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ record_id: recordId, action })
+        });
+
+        if (!res.ok) throw new Error();
+
+        showToast(action === 'like' ? '感谢反馈' : '已收到您的意见');
+
+        if (isIntervention) {
+            showToast('已为您转人工客服');
+        }
+      } catch (e) {
+        showToast('反馈失败');
+      }
+    }
+
+    // ==========================================
+    // 语音合成
+    // ==========================================
+    function speak(text) {
+      try {
+        if (!('speechSynthesis' in window)) return;
+        window.speechSynthesis.cancel();
+        const cleanText = text.replace(/[#*`]/g, '');
+        const u = new SpeechSynthesisUtterance(cleanText);
+        u.lang = 'zh-CN';
+        window.speechSynthesis.speak(u);
+      } catch (e) {}
+    }
+
+    // ==========================================
+    // 清空聊天
+    // ==========================================
+    async function clearChat() {
+      if (!confirm('确定要清空聊天记录吗？')) return;
+
+      try {
+        await fetch('/api/history/clear', { method: 'POST' });
+        chatMessages.innerHTML = '';
+        chatMessages.appendChild(welcomeScreen);
+        welcomeScreen.style.display = 'flex';
+        lastId = 0;
+        allMessages = [];
+        showToast('聊天记录已清空');
+      } catch (e) {
+        showToast('清空失败');
+      }
+    }
+
+    // ==========================================
+    // 初始化
+    // ==========================================
+    async function init() {
+      initVoiceInput();
+      loadFavorites();
+      await poll();
+
+      if (lastId > 0) {
+        hideWelcomeScreen();
+      }
+
+      setTimeout(() => {
+        if (!socketConnected) {
+          console.log('WebSocket 连接超时，启动备用轮询');
+          showToast('实时连接不可用，已切换到轮询模式');
+          setInterval(poll, 3000);
+        }
+      }, 5000);
+    }
+
+    init();
+  </script>
+</body>
+</html>

@@ -1,0 +1,791 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>管理员会话 - {{ target_user.username }}</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+  <style>
+    /* 管理员聊天页面特有样式 */
+    :root {
+      --userBubble: #eef2ff;
+      --adminBubble: #dcfce7;
+    }
+
+    [data-theme="dark"] {
+      --userBubble: rgba(99, 102, 241, 0.18);
+      --adminBubble: rgba(5, 150, 105, 0.18);
+    }
+
+    body{
+      margin:0;
+      min-height:100dvh;
+      background: var(--bg-primary);
+      font-family: var(--font-sans);
+      color: var(--text-primary);
+    }
+
+    .layout{
+      max-width: 1180px;
+      margin: 0 auto;
+      padding: 14px;
+      display:grid;
+      grid-template-columns: 1.2fr 0.8fr;
+      gap: 12px;
+      box-sizing:border-box;
+    }
+
+    @media (max-width: 980px){
+      .layout{ grid-template-columns: 1fr; }
+    }
+
+    .card{
+      background: var(--bg-card);
+      border:1px solid var(--border);
+      border-radius: 14px;
+      box-shadow: 0 8px 24px rgba(0,0,0,0.06);
+      overflow:hidden;
+    }
+
+    .header{
+      padding: 12px 14px;
+      border-bottom:1px solid var(--border);
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      gap: 10px;
+      background: rgba(255,255,255,0.75);
+      backdrop-filter: blur(10px);
+    }
+
+    .header .left{
+      display:flex;
+      flex-direction:column;
+      gap: 3px;
+      min-width: 0;
+    }
+    .header .left b{
+      font-size: 14px;
+      overflow:hidden;
+      white-space:nowrap;
+      text-overflow:ellipsis;
+    }
+    .header .left span{
+      font-size: 12px;
+      color: var(--text-muted);
+    }
+
+    .header .right{
+      display:flex;
+      gap: 8px;
+      align-items:center;
+      flex-wrap:wrap;
+      justify-content:flex-end;
+    }
+
+    .btn{
+      border:1px solid rgba(0,0,0,0.10);
+      background:#fff;
+      color:#111827;
+      padding: 8px 12px;
+      border-radius: 12px;
+      cursor:pointer;
+      font-size: 13px;
+      text-decoration:none;
+      display:inline-flex;
+      align-items:center;
+      gap: 8px;
+      user-select:none;
+    }
+    .btn:hover{ border-color: rgba(37,99,235,0.35); }
+    .btn.primary{
+      background: var(--primary);
+      border-color: rgba(37,99,235,0.35);
+      color:#fff;
+    }
+    .btn.danger{
+      background:#fff;
+      border-color: rgba(220,38,38,0.35);
+      color:#991b1b;
+    }
+
+    .pill{
+      font-size:12px;
+      padding: 4px 10px;
+      border-radius: 999px;
+      border:1px solid rgba(0,0,0,0.10);
+      background:#fff;
+      color:#374151;
+    }
+    .pill.danger{
+      border-color: rgba(220,38,38,0.35);
+      background: rgba(220,38,38,0.08);
+      color: #991b1b;
+    }
+    .pill.ok{
+      border-color: rgba(16,185,129,0.35);
+      background: rgba(16,185,129,0.08);
+      color: #065f46;
+    }
+
+    .chat{
+      height: calc(100vh - 210px);
+      overflow:auto;
+      padding: 12px;
+      display:flex;
+      flex-direction:column;
+      gap: 10px;
+      background: linear-gradient(180deg, rgba(255,255,255,0.25), rgba(255,255,255,0.70));
+    }
+
+    .msg{
+      display:flex;
+      gap: 8px;
+      align-items:flex-end;
+      max-width: 100%;
+    }
+    .msg.user{ justify-content:flex-start; }
+    .msg.ai{ justify-content:flex-start; }
+    .msg.admin{ justify-content:flex-end; }
+
+    .avatar{
+      width:30px;
+      height:30px;
+      border-radius:50%;
+      background:#e5e7eb;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      font-size:12px;
+      color:#374151;
+      user-select:none;
+      flex: 0 0 auto;
+    }
+    .msg.admin .avatar{ background:#d1fae5; }
+
+    .bubbleWrap{
+      max-width: min(720px, 76vw);
+      display:flex;
+      flex-direction:column;
+      gap: 6px;
+      min-width: 0;
+    }
+
+    .meta{
+      font-size: 11px;
+      color: var(--text-muted);
+      display:flex;
+      gap: 10px;
+      align-items:center;
+      flex-wrap:wrap;
+    }
+
+    .bubble{
+      border-radius: 14px;
+      padding: 10px 12px;
+      line-height: 1.55;
+      font-size: 14px;
+      border:1px solid var(--border);
+      background: #fff;
+      white-space: pre-wrap;
+      word-break: break-word;
+    }
+
+    .msg.user .bubble{ background: var(--userBubble); }
+    .msg.ai .bubble{ background: var(--bg-card); }
+    .msg.admin .bubble{ background: var(--adminBubble); }
+
+    .feedback{
+      font-size:12px;
+      color:#374151;
+      opacity:0.85;
+    }
+    .feedback .like{ color:#065f46; }
+    .feedback .dislike{ color:#991b1b; }
+
+    .composer{
+      padding: 10px 12px;
+      border-top:1px solid var(--border);
+      display:flex;
+      gap: 10px;
+      align-items:center;
+      background: rgba(255,255,255,0.75);
+      backdrop-filter: blur(10px);
+    }
+    .composer input{
+      flex:1;
+      height:40px;
+      border-radius: 12px;
+      border:1px solid var(--border);
+      padding: 0 12px;
+      outline:none;
+      font-size: 14px;
+      background:#fff;
+    }
+    .composer input:focus{
+      border-color: rgba(37,99,235,0.35);
+      box-shadow: 0 0 0 4px rgba(37,99,235,0.15);
+    }
+
+    .side{
+      padding: 12px;
+      display:flex;
+      flex-direction:column;
+      gap: 12px;
+    }
+
+    .section{
+      border:1px solid var(--border);
+      border-radius: 14px;
+      background:#fff;
+      overflow:hidden;
+    }
+    .section h3{
+      margin:0;
+      padding: 10px 12px;
+      font-size: 13px;
+      border-bottom:1px solid var(--border);
+      background: rgba(249,250,251,0.9);
+    }
+    .section .body{
+      padding: 10px 12px;
+    }
+
+    .qrList{
+      display:flex;
+      flex-direction:column;
+      gap: 8px;
+    }
+    .qrItem{
+      border:1px solid rgba(0,0,0,0.08);
+      border-radius: 12px;
+      padding: 10px;
+      display:flex;
+      flex-direction:column;
+      gap: 8px;
+      background:#fff;
+    }
+    .qrItem .content{
+      font-size: 13px;
+      color:#111827;
+      white-space: pre-wrap;
+      word-break: break-word;
+    }
+    .qrItem .actions{
+      display:flex;
+      gap: 8px;
+      flex-wrap:wrap;
+    }
+    .small{
+      font-size: 12px;
+      color: var(--text-muted);
+      line-height:1.6;
+    }
+    textarea{
+      width:100%;
+      min-height: 88px;
+      border-radius: 12px;
+      border:1px solid rgba(0,0,0,0.12);
+      padding: 10px;
+      outline:none;
+      font-size: 13px;
+      box-sizing:border-box;
+      resize: vertical;
+    }
+    textarea:focus{
+      border-color: rgba(37,99,235,0.35);
+      box-shadow: 0 0 0 4px rgba(37,99,235,0.15);
+    }
+    .row{
+      display:flex;
+      gap: 8px;
+      align-items:center;
+      flex-wrap:wrap;
+      margin-top: 10px;
+    }
+    .row input{
+      flex:1;
+    }
+  </style>
+</head>
+<body>
+  <div class="layout">
+    <!-- 左侧：会话 -->
+    <div class="card">
+      <div class="header">
+        <div class="left">
+          <b>与用户：{{ target_user.username }} 的会话</b>
+          <span>用户ID：{{ target_user.id }} · 风险计数：{{ target_user.risk_counter }}</span>
+        </div>
+        <div class="right">
+          {% if target_user.needs_intervention %}
+            <span id="pill" class="pill danger">needs_intervention</span>
+          {% else %}
+            <span id="pill" class="pill ok">正常</span>
+          {% endif %}
+
+          <button class="btn" type="button" onclick="resolveUser()">标记已处理</button>
+          <a class="btn" href="/admin">返回列表</a>
+          <a class="btn danger" href="/logout">退出</a>
+        </div>
+      </div>
+
+      <div id="chat" class="chat">
+        {% for r in history %}
+          {% if r.text %}
+            <div class="msg user" data-id="{{ r.id }}">
+              <div class="avatar">用</div>
+              <div class="bubbleWrap">
+                <div class="meta">
+                  <span>用户</span>
+                  <span>{{ r.timestamp.strftime('%m-%d %H:%M') if r.timestamp else '' }}</span>
+                  <span class="pill">{{ r.emotion }}</span>
+                  <span class="pill">conf={{ "%.2f"|format(r.confidence or 0) }}</span>
+                </div>
+                <div class="bubble">{{ r.text }}</div>
+              </div>
+            </div>
+          {% endif %}
+
+          {% if r.reply %}
+            {% if r.is_admin_reply %}
+              <div class="msg admin" data-id="{{ r.id }}">
+                <div class="bubbleWrap">
+                  <div class="meta">
+                    <span>管理员</span>
+                    <span>{{ r.timestamp.strftime('%m-%d %H:%M') if r.timestamp else '' }}</span>
+                  </div>
+                  <div class="bubble">{{ r.reply }}</div>
+                </div>
+                <div class="avatar">人</div>
+              </div>
+            {% else %}
+              <div class="msg ai" data-id="{{ r.id }}">
+                <div class="avatar">AI</div>
+                <div class="bubbleWrap">
+                  <div class="meta">
+                    <span>AI</span>
+                    <span>{{ r.timestamp.strftime('%m-%d %H:%M') if r.timestamp else '' }}</span>
+                    <span class="pill">{{ r.emotion }}</span>
+                    <span class="pill">conf={{ "%.2f"|format(r.confidence or 0) }}</span>
+                    <span class="pill">
+                      {% if r.feedback == 1 %}
+                        👍 like
+                      {% elif r.feedback == -1 %}
+                        👎 dislike
+                      {% else %}
+                        · no feedback
+                      {% endif %}
+                    </span>
+                  </div>
+                  <div class="bubble">{{ r.reply }}</div>
+                  <div class="feedback">
+                    {% if r.feedback == 1 %}
+                      用户反馈：<b class="like">👍</b>
+                    {% elif r.feedback == -1 %}
+                      用户反馈：<b class="dislike">👎</b>
+                    {% else %}
+                      用户反馈：无
+                    {% endif %}
+                  </div>
+                </div>
+              </div>
+            {% endif %}
+          {% endif %}
+        {% endfor %}
+      </div>
+
+      <div class="composer">
+        <input id="replyInput" placeholder="输入人工回复，回车发送…" autocomplete="off" />
+        <button class="btn primary" type="button" id="sendBtn">发送</button>
+      </div>
+    </div>
+
+    <!-- 右侧：快捷回复与说明 -->
+    <div class="card">
+      <div class="side">
+        <div class="section">
+          <h3>快捷回复（可一键填充）</h3>
+          <div class="body">
+            <div class="qrList" id="qrList">
+              <!-- JS 动态渲染 -->
+            </div>
+
+            <div class="row">
+              <button class="btn primary" type="button" onclick="reloadQuickReplies()">刷新列表</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="section">
+          <h3>新增快捷回复</h3>
+          <div class="body">
+            <textarea id="qrNewText" placeholder="输入快捷回复内容..."></textarea>
+            <div class="row">
+              <button class="btn primary" type="button" onclick="createQuickReply()">新增</button>
+            </div>
+            <div class="small">支持新增/编辑/删除。编辑不会影响历史消息。</div>
+          </div>
+        </div>
+
+        <div class="section">
+          <h3>说明</h3>
+          <div class="body small">
+            <ul>
+              <li>该页会自动轮询新消息，支持实时查看用户输入、AI回复与用户反馈。</li>
+              <li>当用户处于干预模式时：AI 对用户消息会保持沉默，直到管理员发出人工回复。</li>
+              <li>“标记已处理”将解除 needs_intervention，恢复系统正常流程。</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <script>
+      const targetUserId = {{ target_user.id }};
+      const chatEl = document.getElementById('chat');
+      const replyInput = document.getElementById('replyInput');
+      const sendBtn = document.getElementById('sendBtn');
+      const qrListEl = document.getElementById('qrList');
+      const pillEl = document.getElementById('pill');
+
+      let lastId = 0;
+
+      // 初始化 lastId 为页面上最后一条消息的 id
+      (function initLastId(){
+        const nodes = chatEl.querySelectorAll('[data-id]');
+        for(const n of nodes){
+          const id = parseInt(n.dataset.id || '0', 10);
+          if(id > lastId) lastId = id;
+        }
+        scrollToBottom();
+      })();
+
+      function scrollToBottom(){
+        chatEl.scrollTop = chatEl.scrollHeight;
+      }
+
+      function escapeHtml(str){
+        return (str ?? '')
+          .replaceAll('&','&amp;')
+          .replaceAll('<','&lt;')
+          .replaceAll('>','&gt;')
+          .replaceAll('"','&quot;')
+          .replaceAll("'","&#039;");
+      }
+
+      // 【修改 1】增强版时间格式化：自动修复 UTC 时区
+      function fmtTime(tsIso){
+        try{
+          if (!tsIso) return '';
+
+          // 如果时间字符串里没有 'Z' (UTC标记) 也没有 '+' (时区标记)，手动加上 'Z'
+          // 这样浏览器就会把它当做 UTC 时间，自动转换为你的本地时间（+8小时）
+          let timeString = tsIso;
+          if (typeof timeString === 'string' && !timeString.includes('Z') && !timeString.includes('+')) {
+              timeString += 'Z';
+          }
+
+          const d = new Date(timeString);
+          const hh = String(d.getHours()).padStart(2,'0');
+          const mm = String(d.getMinutes()).padStart(2,'0');
+          return `${hh}:${mm}`;
+        }catch(e){ return ''; }
+      }
+
+      function addMessageToView(m){
+        // 这里的逻辑保持不变
+        if(m.text && m.text.trim()){
+          const div = document.createElement('div');
+          div.className = 'msg user';
+          div.dataset.id = m.id;
+          div.innerHTML = `
+            <div class="avatar">用</div>
+            <div class="bubbleWrap">
+              <div class="meta">
+                <span>用户</span>
+                <span>${escapeHtml(fmtTime(m.timestamp))}</span>
+                <span class="pill">${escapeHtml(m.emotion || 'neutral')}</span>
+                <span class="pill">conf=${Number(m.confidence || 0).toFixed(2)}</span>
+              </div>
+              <div class="bubble">${escapeHtml(m.text)}</div>
+            </div>
+          `;
+          chatEl.appendChild(div);
+        }
+
+        if(m.reply && m.reply.trim()){
+          if(m.is_admin_reply){
+            const div = document.createElement('div');
+            div.className = 'msg admin';
+            div.dataset.id = m.id;
+            div.innerHTML = `
+              <div class="bubbleWrap">
+                <div class="meta">
+                  <span>管理员</span>
+                  <span>${escapeHtml(fmtTime(m.timestamp))}</span>
+                </div>
+                <div class="bubble">${escapeHtml(m.reply)}</div>
+              </div>
+              <div class="avatar">人</div>
+            `;
+            chatEl.appendChild(div);
+          }else{
+            const fbText = (m.feedback === 1) ? '👍 like' : (m.feedback === -1) ? '👎 dislike' : '· no feedback';
+            const fbLine = (m.feedback === 1) ? '用户反馈：<b class="like">👍</b>' :
+                           (m.feedback === -1) ? '用户反馈：<b class="dislike">👎</b>' : '用户反馈：无';
+
+            const div = document.createElement('div');
+            div.className = 'msg ai';
+            div.dataset.id = m.id;
+            div.innerHTML = `
+              <div class="avatar">AI</div>
+              <div class="bubbleWrap">
+                <div class="meta">
+                  <span>AI</span>
+                  <span>${escapeHtml(fmtTime(m.timestamp))}</span>
+                  <span class="pill">${escapeHtml(m.emotion || 'neutral')}</span>
+                  <span class="pill">conf=${Number(m.confidence || 0).toFixed(2)}</span>
+                  <span class="pill">${fbText}</span>
+                </div>
+                <div class="bubble">${escapeHtml(m.reply)}</div>
+                <div class="feedback">${fbLine}</div>
+              </div>
+            `;
+            chatEl.appendChild(div);
+          }
+        }
+        scrollToBottom();
+      }
+
+      async function poll(){
+        try{
+          const res = await fetch(`/api/admin/get_messages/${targetUserId}?last_id=${lastId}`);
+          const data = await res.json();
+          if(!res.ok) return;
+
+          const msgs = data.messages || [];
+          for(const m of msgs){
+            // 只有当消息ID确实大于 lastId 时才处理
+            if(m.id > lastId) {
+               lastId = m.id;
+               addMessageToView(m);
+            }
+          }
+        }catch(e){
+          // ignore
+        }
+      }
+
+      async function sendAdminReply(){
+        const text = (replyInput.value || '').trim();
+        if(!text) return;
+        sendBtn.disabled = true;
+
+        try{
+          const res = await fetch('/api/admin/reply', {
+            method: 'POST',
+            headers: {'Content-Type':'application/json'},
+            body: JSON.stringify({user_id: targetUserId, reply: text})
+          });
+          const data = await res.json();
+          if(!res.ok){
+            alert('发送失败：' + (data.status || res.status));
+            sendBtn.disabled = false;
+            return;
+          }
+
+          // 【修改 2】删除了手动 addMessageToView 的代码
+          // 改为直接调用 poll()，从服务器拉取刚才发送的消息
+          // 这样既能保证显示，又不会因为“本地加一次+服务器拉一次”导致重复
+
+          replyInput.value = '';
+          replyInput.focus();
+
+          // 立即触发一次轮询，让消息马上显示出来
+          await poll();
+
+        }catch(e){
+          alert('网络异常，发送失败');
+        }finally{
+          sendBtn.disabled = false;
+        }
+      }
+
+      async function resolveUser(){
+        if(!confirm('确认解除该用户干预状态？')) return;
+        try{
+          const res = await fetch('/api/admin/resolve_user', {
+            method: 'POST',
+            headers: {'Content-Type':'application/json'},
+            body: JSON.stringify({user_id: targetUserId})
+          });
+          const data = await res.json();
+          if(!res.ok){
+            alert('操作失败：' + (data.status || res.status));
+            return;
+          }
+          pillEl.className = 'pill ok';
+          pillEl.textContent = '正常';
+          alert('已解除干预。');
+        }catch(e){
+          alert('网络异常，操作失败');
+        }
+      }
+
+      // =========================
+      // Quick Replies UI + CRUD (保持原样)
+      // =========================
+      function renderQuickReplies(items){
+        qrListEl.innerHTML = '';
+        if(!items || items.length === 0){
+          qrListEl.innerHTML = `<div class="small">暂无快捷回复，可在下方新增。</div>`;
+          return;
+        }
+
+        for(const it of items){
+          const div = document.createElement('div');
+          div.className = 'qrItem';
+          div.dataset.id = it.id;
+
+          div.innerHTML = `
+            <div class="content" id="qr-content-${it.id}">${escapeHtml(it.content)}</div>
+            <div class="actions">
+              <button class="btn primary" type="button" onclick="useQuickReply(${it.id})">填充</button>
+              <button class="btn" type="button" onclick="startEditQuickReply(${it.id})">编辑</button>
+              <button class="btn danger" type="button" onclick="deleteQuickReply(${it.id})">删除</button>
+            </div>
+            <div id="qr-edit-${it.id}" style="display:none;">
+              <textarea id="qr-edit-text-${it.id}"></textarea>
+              <div class="row">
+                <button class="btn primary" type="button" onclick="saveQuickReply(${it.id})">保存</button>
+                <button class="btn" type="button" onclick="cancelEditQuickReply(${it.id})">取消</button>
+              </div>
+            </div>
+          `;
+
+          qrListEl.appendChild(div);
+        }
+      }
+
+      async function reloadQuickReplies(){
+        try{
+          const res = await fetch('/api/admin/quick_reply');
+          const data = await res.json();
+          if(!res.ok){
+            alert('加载快捷回复失败');
+            return;
+          }
+          renderQuickReplies(data.items || []);
+        }catch(e){
+          alert('网络异常，加载失败');
+        }
+      }
+
+      function useQuickReply(id){
+        const contentEl = document.getElementById(`qr-content-${id}`);
+        const text = (contentEl?.textContent || '').trim();
+        if(text){
+          replyInput.value = text;
+          replyInput.focus();
+        }
+      }
+
+      function startEditQuickReply(id){
+        const contentEl = document.getElementById(`qr-content-${id}`);
+        const editorWrap = document.getElementById(`qr-edit-${id}`);
+        const ta = document.getElementById(`qr-edit-text-${id}`);
+
+        if(!contentEl || !editorWrap || !ta) return;
+        ta.value = contentEl.textContent || '';
+        editorWrap.style.display = 'block';
+      }
+
+      function cancelEditQuickReply(id){
+        const editorWrap = document.getElementById(`qr-edit-${id}`);
+        if(editorWrap) editorWrap.style.display = 'none';
+      }
+
+      async function saveQuickReply(id){
+        const ta = document.getElementById(`qr-edit-text-${id}`);
+        const content = (ta?.value || '').trim();
+        if(!content){
+          alert('内容不能为空');
+          return;
+        }
+        try{
+          const res = await fetch(`/api/admin/quick_reply/${id}`, {
+            method: 'PUT',
+            headers: {'Content-Type':'application/json'},
+            body: JSON.stringify({content})
+          });
+          const data = await res.json();
+          if(!res.ok){
+            alert('保存失败：' + (data.status || res.status));
+            return;
+          }
+          await reloadQuickReplies();
+        }catch(e){
+          alert('网络异常，保存失败');
+        }
+      }
+
+      async function deleteQuickReply(id){
+        if(!confirm('确认删除该快捷回复？')) return;
+        try{
+          const res = await fetch(`/api/admin/quick_reply/${id}`, { method:'DELETE' });
+          const data = await res.json();
+          if(!res.ok){
+            alert('删除失败：' + (data.status || res.status));
+            return;
+          }
+          await reloadQuickReplies();
+        }catch(e){
+          alert('网络异常，删除失败');
+        }
+      }
+
+      async function createQuickReply(){
+        const ta = document.getElementById('qrNewText');
+        const content = (ta.value || '').trim();
+        if(!content){
+          alert('请输入内容');
+          return;
+        }
+        try{
+          const res = await fetch('/api/admin/quick_reply', {
+            method:'POST',
+            headers:{'Content-Type':'application/json'},
+            body: JSON.stringify({content})
+          });
+          const data = await res.json();
+          if(!res.ok){
+            alert('新增失败：' + (data.status || res.status));
+            return;
+          }
+          ta.value = '';
+          await reloadQuickReplies();
+        }catch(e){
+          alert('网络异常，新增失败');
+        }
+      }
+
+      // send on enter
+      replyInput.addEventListener('keydown', (e) => {
+        if(e.key === 'Enter'){
+          e.preventDefault();
+          sendAdminReply();
+        }
+      });
+      sendBtn.addEventListener('click', sendAdminReply);
+
+      // boot
+      reloadQuickReplies();
+      setInterval(poll, 3000);
+      poll();
+  </script>
+
+</body>
+</html>

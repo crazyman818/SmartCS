@@ -1,0 +1,238 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <title>知识库管理 - 智能客服后台</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+  <style>
+    /* 知识库管理页面特有样式 — 深色主题 */
+    body { font-family: var(--font-sans); margin:0; background:#0b1120; color:#e6eefc; min-height:100dvh; }
+    .topbar { display:flex; align-items:center; justify-content:space-between; padding:14px 18px; background:#121b2d; border-bottom:1px solid rgba(255,255,255,.08); position:sticky; top:0; z-index:10; }
+    .topbar a { color:#cfe3ff; text-decoration:none; margin-right:12px; opacity:.9; }
+    .topbar a:hover { opacity:1; }
+    .wrap { padding:18px; max-width:1200px; margin:0 auto; }
+    .card { background:#0f1b33; border:1px solid rgba(255,255,255,.08); border-radius:14px; padding:14px; }
+    .row { display:flex; gap:12px; flex-wrap:wrap; align-items:center; }
+    .btn { border:1px solid rgba(255,255,255,.14); background:#16284c; color:#e6eefc; padding:10px 12px; border-radius:10px; cursor:pointer; }
+    .btn:hover { filter:brightness(1.05); }
+    .btn.danger { background:#3b1b1b; }
+    .btn.primary { background:#1b3a7a; }
+    input, textarea, select { background:#0b1220; border:1px solid rgba(255,255,255,.14); color:#e6eefc; border-radius:10px; padding:10px 12px; }
+    textarea { width:100%; min-height:110px; resize:vertical; }
+    table { width:100%; border-collapse:collapse; margin-top:12px; }
+    th, td { border-bottom:1px solid rgba(255,255,255,.08); padding:10px 8px; vertical-align:top; }
+    th { text-align:left; font-weight:600; color:#cfe3ff; }
+    .muted { opacity:.75; }
+    .tag { display:inline-block; padding:2px 8px; border:1px solid rgba(255,255,255,.16); border-radius:999px; margin-right:6px; font-size:12px; opacity:.9; }
+    .modal { position:fixed; inset:0; background:rgba(0,0,0,.55); display:none; align-items:center; justify-content:center; z-index:20; }
+    .modal .panel { width:min(900px, 92vw); background:#0f1b33; border:1px solid rgba(255,255,255,.12); border-radius:16px; padding:14px; }
+    .modal .panel h3 { margin:0 0 10px 0; }
+    .grid { display:grid; grid-template-columns: 1fr 1fr; gap:12px; }
+    @media (max-width: 860px){ .grid{ grid-template-columns:1fr; } }
+  </style>
+</head>
+<body>
+  <div class="topbar">
+    <div>
+      <a href="/admin">← 返回总览</a>
+      <span class="muted">知识库 / RAG</span>
+    </div>
+    <div class="row">
+      <button class="btn" onclick="openCreate()">+ 新增 Q&A</button>
+      <button class="btn" onclick="reload()">刷新</button>
+      <button class="btn" onclick="rebuildEmbeddings()">重建向量</button>
+      <a href="/logout">退出</a>
+    </div>
+  </div>
+
+  <div class="wrap">
+    <div class="card">
+      <div class="row" style="justify-content:space-between;">
+        <div class="row">
+          <label class="muted">状态</label>
+          <select id="filterEnabled" onchange="reload()">
+            <option value="1">仅启用</option>
+            <option value="0">仅禁用</option>
+            <option value="all">全部</option>
+          </select>
+          <input id="kw" placeholder="关键字过滤（前端）" oninput="render()"/>
+        </div>
+        <div class="muted" id="stat">-</div>
+      </div>
+
+      <table>
+        <thead>
+          <tr>
+            <th style="width:70px;">ID</th>
+            <th>问题 / 答案</th>
+            <th style="width:180px;">标签</th>
+            <th style="width:130px;">更新时间</th>
+            <th style="width:210px;">操作</th>
+          </tr>
+        </thead>
+        <tbody id="tbody"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="modal" id="modal">
+    <div class="panel">
+      <div class="row" style="justify-content:space-between;">
+        <h3 id="modalTitle">新增 Q&A</h3>
+        <button class="btn" onclick="closeModal()">关闭</button>
+      </div>
+
+      <div class="grid">
+        <div>
+          <div class="muted" style="margin-bottom:6px;">问题（Question）</div>
+          <textarea id="fQuestion" placeholder="例如：如何申请退款？"></textarea>
+        </div>
+        <div>
+          <div class="muted" style="margin-bottom:6px;">答案（Answer）</div>
+          <textarea id="fAnswer" placeholder="例如：进入个人中心 → 退款申请 → 选择订单并提交原因..."></textarea>
+        </div>
+      </div>
+
+      <div class="row" style="margin-top:12px;">
+        <input id="fTags" style="flex:1;" placeholder="标签（逗号分隔），例如：退款,流程,订单"/>
+        <label class="muted">启用</label>
+        <select id="fEnabled">
+          <option value="1">是</option>
+          <option value="0">否</option>
+        </select>
+        <button class="btn primary" onclick="save()">保存</button>
+      </div>
+      <div class="muted" style="margin-top:8px;">
+        提示：如果你安装了 <code>sentence-transformers</code>，系统会自动计算向量；否则会降级为关键词检索，但仍可演示 RAG 流程。
+      </div>
+    </div>
+  </div>
+
+  <script>
+    let rows = [];
+    let editingId = null;
+
+    function escapeHtml(s){
+      return (s ?? '').toString()
+        .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+        .replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+    }
+
+    async function reload(){
+      const en = document.getElementById('filterEnabled').value;
+      const qs = en === 'all' ? '' : `?enabled=${encodeURIComponent(en)}`;
+      const res = await fetch(`/api/admin/kb/qa/list${qs}`);
+      const json = await res.json();
+      if(!json.success){ alert('加载失败：' + (json.msg || '未知错误')); return; }
+      rows = json.data || [];
+      render();
+    }
+
+    function render(){
+      const kw = (document.getElementById('kw').value || '').trim().toLowerCase();
+      const tb = document.getElementById('tbody');
+      tb.innerHTML = '';
+
+      let shown = 0;
+      for(const r of rows){
+        const blob = `${r.question}\n${r.answer}\n${r.tags}`.toLowerCase();
+        if(kw && !blob.includes(kw)) continue;
+        shown++;
+
+        const tr = document.createElement('tr');
+        const tags = (r.tags || '').split(',').map(t => t.trim()).filter(Boolean)
+          .map(t => `<span class="tag">${escapeHtml(t)}</span>`).join('');
+        tr.innerHTML = `
+          <td class="muted">${Number(r.id)}</td>
+          <td>
+            <div><b>Q</b>: ${escapeHtml(r.question)}</div>
+            <div style="margin-top:6px;"><b>A</b>: ${escapeHtml(r.answer)}</div>
+            <div class="muted" style="margin-top:6px;">${r.enabled ? '启用' : '禁用'}</div>
+          </td>
+          <td>${tags || '<span class="muted">-</span>'}</td>
+          <td class="muted">${escapeHtml(r.updated_at || '')}</td>
+          <td>
+            <button class="btn" onclick="openEdit(${Number(r.id)})">编辑</button>
+            <button class="btn" onclick="toggle(${Number(r.id)})">${r.enabled ? '禁用' : '启用'}</button>
+            <button class="btn danger" onclick="delRow(${Number(r.id)})">删除</button>
+          </td>
+        `;
+        tb.appendChild(tr);
+      }
+      document.getElementById('stat').innerText = `共 ${rows.length} 条，显示 ${shown} 条`;
+    }
+
+    function openCreate(){
+      editingId = null;
+      document.getElementById('modalTitle').innerText = '新增 Q&A';
+      document.getElementById('fQuestion').value = '';
+      document.getElementById('fAnswer').value = '';
+      document.getElementById('fTags').value = '';
+      document.getElementById('fEnabled').value = '1';
+      document.getElementById('modal').style.display = 'flex';
+    }
+
+    function openEdit(id){
+      const r = rows.find(x => Number(x.id) === Number(id));
+      if(!r) return;
+      editingId = id;
+      document.getElementById('modalTitle').innerText = '编辑 Q&A';
+      document.getElementById('fQuestion').value = r.question || '';
+      document.getElementById('fAnswer').value = r.answer || '';
+      document.getElementById('fTags').value = r.tags || '';
+      document.getElementById('fEnabled').value = r.enabled ? '1' : '0';
+      document.getElementById('modal').style.display = 'flex';
+    }
+
+    function closeModal(){
+      document.getElementById('modal').style.display = 'none';
+    }
+
+    async function save(){
+      const question = (document.getElementById('fQuestion').value || '').trim();
+      const answer = (document.getElementById('fAnswer').value || '').trim();
+      const tags = (document.getElementById('fTags').value || '').trim();
+      const enabled = document.getElementById('fEnabled').value === '1';
+      if(question.length < 2 || answer.length < 2){ alert('问题与答案不能为空'); return; }
+
+      const url = editingId ? `/api/admin/kb/qa/${editingId}/update` : '/api/admin/kb/qa/create';
+      const payload = editingId ? {question, answer, tags, enabled} : {question, answer, tags};
+      const res = await fetch(url, {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload)});
+      const json = await res.json();
+      if(!json.success){ alert('保存失败：' + (json.msg || '未知错误')); return; }
+      closeModal();
+      await reload();
+    }
+
+    async function toggle(id){
+      const r = rows.find(x => Number(x.id) === Number(id));
+      if(!r) return;
+      const enabled = !r.enabled;
+      const res = await fetch(`/api/admin/kb/qa/${id}/update`, {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({enabled})});
+      const json = await res.json();
+      if(!json.success){ alert('操作失败：' + (json.msg || '未知错误')); return; }
+      await reload();
+    }
+
+    async function delRow(id){
+      if(!confirm('确认删除？（将软删除为禁用）')) return;
+      const res = await fetch(`/api/admin/kb/qa/${id}/delete`, {method:'POST'});
+      const json = await res.json();
+      if(!json.success){ alert('删除失败：' + (json.msg || '未知错误')); return; }
+      await reload();
+    }
+
+    async function rebuildEmbeddings(){
+      if(!confirm('将为所有知识库条目重算向量（可能较慢）。继续？')) return;
+      const res = await fetch('/api/admin/kb/rebuild_embeddings', {method:'POST'});
+      const json = await res.json();
+      if(!json.success){ alert('重建失败：' + (json.msg || '未知错误')); return; }
+      alert('完成：' + (json.data?.updated ?? 0) + ' 条');
+      await reload();
+    }
+
+    reload();
+  </script>
+</body>
+</html>

@@ -1,0 +1,320 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>退款工单管理 - 智能客服系统</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+  <style>
+    /* 退款管理页面特有样式 */
+    *{ box-sizing:border-box; }
+    body{
+      margin:0; min-height:100dvh; background:var(--bg-primary);
+      font-family:var(--font-sans); color:var(--text-primary);
+    }
+    .container{ max-width:1100px; margin:0 auto; padding:16px 14px 50px; }
+    .topbar{
+      display:flex; justify-content:space-between; align-items:center; gap:10px;
+      padding:12px 16px; background:rgba(255,255,255,0.92);
+      border:1px solid rgba(0,0,0,0.08); border-radius:14px;
+      box-shadow:0 4px 20px rgba(0,0,0,0.05); position:sticky; top:10px;
+      backdrop-filter:blur(10px); z-index:10; margin-bottom:16px;
+    }
+    .topbar h1{ margin:0; font-size:17px; }
+    .nav{ display:flex; gap:10px; align-items:center; flex-wrap:wrap; }
+    .btn{
+      border:1px solid rgba(0,0,0,0.10); background:#fff; color:#111827;
+      padding:8px 12px; border-radius:10px; cursor:pointer; font-size:13px;
+      text-decoration:none; display:inline-flex; align-items:center; gap:6px;
+      transition:all 0.15s;
+    }
+    .btn:hover{ border-color:rgba(37,99,235,0.4); }
+    .btn.primary{ background:#2563eb; color:#fff; border-color:transparent; }
+    .btn.primary:hover{ opacity:0.9; }
+    .btn.danger{ color:#991b1b; border-color:rgba(220,38,38,0.3); }
+    .btn.danger:hover{ background:#fee2e2; }
+    .btn.success{ color:#065f46; border-color:rgba(16,185,129,0.3); }
+    .btn.success:hover{ background:#d1fae5; }
+    .btn:disabled{ opacity:0.5; cursor:not-allowed; }
+
+    /* 过滤器 */
+    .filter-bar{
+      display:flex; gap:10px; align-items:center; flex-wrap:wrap;
+      background:#fff; border:1px solid rgba(0,0,0,0.07); border-radius:12px;
+      padding:12px 16px; margin-bottom:14px;
+      box-shadow:0 2px 6px rgba(0,0,0,0.03);
+    }
+    .filter-bar label{ font-size:13px; color:#6b7280; margin-right:4px; }
+    .filter-btn{
+      padding:6px 14px; border-radius:20px; font-size:13px; cursor:pointer;
+      border:1px solid #e5e7eb; background:#fff; color:#374151; transition:all 0.15s;
+    }
+    .filter-btn.active{ background:#2563eb; color:#fff; border-color:#2563eb; }
+    .filter-btn:hover:not(.active){ background:#f3f4f6; }
+
+    /* 统计卡片 */
+    .stats-row{ display:grid; grid-template-columns:repeat(4,1fr); gap:10px; margin-bottom:14px; }
+    @media(max-width:700px){ .stats-row{ grid-template-columns:repeat(2,1fr); } }
+    .stat-card{
+      background:#fff; border:1px solid rgba(0,0,0,0.07);
+      border-radius:12px; padding:12px 16px;
+      box-shadow:0 1px 4px rgba(0,0,0,0.04);
+    }
+    .stat-card .sc-label{ font-size:12px; color:#6b7280; }
+    .stat-card .sc-value{ font-size:24px; font-weight:700; margin-top:2px; }
+    .sc-pending .sc-value{ color:#d97706; }
+    .sc-approved .sc-value{ color:#059669; }
+    .sc-rejected .sc-value{ color:#dc2626; }
+    .sc-total .sc-value{ color:#2563eb; }
+
+    /* 表格 */
+    .table-wrap{ background:#fff; border:1px solid rgba(0,0,0,0.07); border-radius:14px; overflow:hidden; box-shadow:0 2px 8px rgba(0,0,0,0.04); }
+    table{ width:100%; border-collapse:collapse; font-size:13px; }
+    thead tr{ background:#f9fafb; }
+    th{ padding:12px 14px; text-align:left; color:#6b7280; font-weight:600; font-size:12px; white-space:nowrap; }
+    td{ padding:12px 14px; border-top:1px solid #f3f4f6; vertical-align:middle; }
+    tr:hover td{ background:#fafbff; }
+    .empty-row td{ text-align:center; padding:40px; color:#9ca3af; }
+
+    /* 状态徽章 */
+    .badge{
+      display:inline-block; padding:3px 9px; border-radius:999px; font-size:12px; font-weight:500;
+    }
+    .badge.pending{ background:#fef3c7; color:#92400e; }
+    .badge.approved{ background:#d1fae5; color:#065f46; }
+    .badge.rejected{ background:#fee2e2; color:#991b1b; }
+
+    /* 审批模态框 */
+    .modal-mask{
+      display:none; position:fixed; inset:0; background:rgba(0,0,0,0.4);
+      z-index:200; align-items:center; justify-content:center;
+    }
+    .modal-mask.open{ display:flex; }
+    .modal{
+      background:#fff; border-radius:16px; padding:24px;
+      width:min(460px,92vw); box-shadow:0 20px 60px rgba(0,0,0,0.2);
+    }
+    .modal h3{ margin:0 0 14px; font-size:16px; }
+    .modal label{ font-size:13px; color:#374151; display:block; margin-bottom:4px; }
+    .modal textarea{
+      width:100%; padding:10px 12px; border:1px solid #d1d5db; border-radius:10px;
+      font-size:14px; outline:none; resize:vertical; min-height:80px;
+      font-family:inherit; margin-bottom:14px;
+    }
+    .modal textarea:focus{ border-color:#2563eb; box-shadow:0 0 0 3px rgba(37,99,235,0.15); }
+    .modal-info{ background:#f8fafc; border:1px solid #e2e8f0; border-radius:10px; padding:10px 14px; margin-bottom:14px; font-size:13px; }
+    .modal-info p{ margin:3px 0; color:#374151; }
+    .modal-info .info-label{ color:#6b7280; font-size:12px; }
+    .modal-footer{ display:flex; gap:10px; justify-content:flex-end; }
+
+    @media(max-width:700px){
+      th:nth-child(3), td:nth-child(3){ display:none; }
+    }
+  </style>
+</head>
+<body>
+<div class="container">
+  <div class="topbar">
+    <h1>🔖 退款工单管理</h1>
+    <div class="nav">
+      <button class="btn primary" onclick="loadRefunds()">🔄 刷新</button>
+      <a class="btn" href="/dashboard">📊 数据看板</a>
+      <a class="btn" href="/admin">👮 管理后台</a>
+      <a class="btn danger" href="/logout">退出</a>
+    </div>
+  </div>
+
+  <!-- 统计行 -->
+  <div class="stats-row">
+    <div class="stat-card sc-pending">
+      <div class="sc-label">待审核</div>
+      <div class="sc-value" id="cnt-pending">—</div>
+    </div>
+    <div class="stat-card sc-approved">
+      <div class="sc-label">已批准</div>
+      <div class="sc-value" id="cnt-approved">—</div>
+    </div>
+    <div class="stat-card sc-rejected">
+      <div class="sc-label">已拒绝</div>
+      <div class="sc-value" id="cnt-rejected">—</div>
+    </div>
+    <div class="stat-card sc-total">
+      <div class="sc-label">合计</div>
+      <div class="sc-value" id="cnt-total">—</div>
+    </div>
+  </div>
+
+  <!-- 过滤器 -->
+  <div class="filter-bar">
+    <label>筛选：</label>
+    <button class="filter-btn active" data-status="" onclick="setFilter(this)">全部</button>
+    <button class="filter-btn" data-status="待审核" onclick="setFilter(this)">待审核</button>
+    <button class="filter-btn" data-status="已批准" onclick="setFilter(this)">已批准</button>
+    <button class="filter-btn" data-status="已拒绝" onclick="setFilter(this)">已拒绝</button>
+  </div>
+
+  <!-- 工单表格 -->
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th width="50">ID</th>
+          <th>用户</th>
+          <th>关联订单</th>
+          <th>退款原因</th>
+          <th>状态</th>
+          <th>申请时间</th>
+          <th width="150">操作</th>
+        </tr>
+      </thead>
+      <tbody id="refund-tbody">
+        <tr class="empty-row"><td colspan="7">加载中...</td></tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<!-- 审批模态框 -->
+<div class="modal-mask" id="reviewModal">
+  <div class="modal">
+    <h3 id="modal-title">审批工单</h3>
+    <div class="modal-info">
+      <p><span class="info-label">用户：</span><strong id="m-username">—</strong></p>
+      <p><span class="info-label">订单：</span><span id="m-order">—</span></p>
+      <p><span class="info-label">退款原因：</span><span id="m-reason">—</span></p>
+    </div>
+    <label>客服备注（可选）</label>
+    <textarea id="m-note" placeholder="可填写处理说明，用户可见..."></textarea>
+    <div class="modal-footer">
+      <button class="btn" onclick="closeModal()">取消</button>
+      <button class="btn danger" id="btn-reject" onclick="submitReview('已拒绝')">拒绝</button>
+      <button class="btn success" id="btn-approve" onclick="submitReview('已批准')">批准</button>
+    </div>
+  </div>
+</div>
+
+<script>
+  let currentFilter = '';
+  let currentRefundId = null;
+  let allRefunds = [];
+
+  function escapeHtml(str) {
+    return (str ?? '').replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;')
+                      .replaceAll('"','&quot;').replaceAll("'","&#039;");
+  }
+
+  function setFilter(btn) {
+    document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    currentFilter = btn.dataset.status;
+    renderTable(allRefunds);
+  }
+
+  async function loadRefunds() {
+    try {
+      const res = await fetch('/api/admin/refunds');
+      const data = await res.json();
+      if (!res.ok) { alert('加载失败'); return; }
+      allRefunds = data.refunds || [];
+      updateStats(allRefunds);
+      renderTable(allRefunds);
+    } catch(e) { alert('网络异常'); }
+  }
+
+  function updateStats(refunds) {
+    document.getElementById('cnt-total').textContent = refunds.length;
+    document.getElementById('cnt-pending').textContent = refunds.filter(r=>r.status==='待审核').length;
+    document.getElementById('cnt-approved').textContent = refunds.filter(r=>r.status==='已批准').length;
+    document.getElementById('cnt-rejected').textContent = refunds.filter(r=>r.status==='已拒绝').length;
+  }
+
+  function renderTable(refunds) {
+    const tbody = document.getElementById('refund-tbody');
+    const filtered = currentFilter ? refunds.filter(r => r.status === currentFilter) : refunds;
+
+    if (!filtered.length) {
+      tbody.innerHTML = '<tr class="empty-row"><td colspan="7">暂无退款工单</td></tr>';
+      return;
+    }
+
+    tbody.innerHTML = '';
+    filtered.forEach(r => {
+      const badgeClass = r.status === '已批准' ? 'approved' : r.status === '已拒绝' ? 'rejected' : 'pending';
+      const isPending = r.status === '待审核';
+
+      const tr = document.createElement('tr');
+      tr.innerHTML = `
+        <td><strong>#${Number(r.id)}</strong></td>
+        <td>
+          <strong>${escapeHtml(r.username)}</strong>
+          <br><a href="/admin/chat/${Number(r.user_id)}" style="font-size:12px;color:#2563eb;text-decoration:none;">查看对话</a>
+        </td>
+        <td style="color:#4b5563;">${escapeHtml(r.order_info || '无')}</td>
+        <td style="max-width:220px;">
+          <div style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${escapeHtml(r.reason)}">${escapeHtml(r.reason)}</div>
+          ${r.admin_note ? `<div style="font-size:12px;color:#6b7280;margin-top:2px;">备注：${escapeHtml(r.admin_note)}</div>` : ''}
+        </td>
+        <td><span class="badge ${badgeClass}">${escapeHtml(r.status)}</span></td>
+        <td style="color:#6b7280;font-size:12px;white-space:nowrap;">${escapeHtml(r.created_at)}</td>
+        <td style="display:flex;gap:6px;align-items:center;">
+          <a href="/admin/chat/${Number(r.user_id)}" class="btn primary" style="padding:5px 12px;font-size:12px;text-decoration:none;">接入对话</a>
+          ${isPending
+            ? `<button class="btn primary" style="padding:5px 12px;font-size:12px;" onclick="openReview(${Number(r.id)})">审批</button>`
+            : `<span style="color:#9ca3af;font-size:12px;">已处理</span>`}
+        </td>`;
+      tbody.appendChild(tr);
+    });
+  }
+
+  function openReview(refundId) {
+    const r = allRefunds.find(x => x.id === refundId);
+    if (!r) return;
+    currentRefundId = refundId;
+    document.getElementById('m-username').textContent = r.username;
+    document.getElementById('m-order').textContent = r.order_info || '无关联订单';
+    document.getElementById('m-reason').textContent = r.reason;
+    document.getElementById('m-note').value = '';
+    document.getElementById('reviewModal').classList.add('open');
+  }
+
+  function closeModal() {
+    document.getElementById('reviewModal').classList.remove('open');
+    currentRefundId = null;
+  }
+
+  async function submitReview(status) {
+    if (!currentRefundId) return;
+    const note = document.getElementById('m-note').value.trim();
+    const btnApprove = document.getElementById('btn-approve');
+    const btnReject = document.getElementById('btn-reject');
+    btnApprove.disabled = true; btnReject.disabled = true;
+
+    try {
+      const res = await fetch(`/api/admin/refund/${currentRefundId}/update`, {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({status, admin_note: note})
+      });
+      const data = await res.json();
+      if (data.status === 'success') {
+        closeModal();
+        await loadRefunds();
+      } else {
+        alert('操作失败：' + (data.msg || res.status));
+      }
+    } catch(e) {
+      alert('网络异常');
+    } finally {
+      btnApprove.disabled = false; btnReject.disabled = false;
+    }
+  }
+
+  // 点击遮罩关闭
+  document.getElementById('reviewModal').addEventListener('click', e => {
+    if (e.target === e.currentTarget) closeModal();
+  });
+
+  loadRefunds();
+</script>
+</body>
+</html>

@@ -1,0 +1,39 @@
+# Python virtual environment
+.venv/
+venv/
+env/
+__pycache__/
+*.pyc
+*.pyo
+*.egg-info/
+dist/
+build/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Sensitive configuration
+.env
+
+# Database files
+instance/
+*.db
+*.db-shm
+*.db-wal
+
+# Large model binary files (>100MB GitHub limit)
+models/chinese-macbert-base/pytorch_model.bin
+models/chinese-macbert-base/tf_model.h5
+models/chinese-macbert-base/flax_model.msgpack
+models/my_finetuned_bert/model.safetensors
+models/__pycache__/
+
+# Thesis document (optional, large)
+22050827-胡家玮-计算机科学与技术.docx
+
+# OS files
+.DS_Store
+Thumbs.db

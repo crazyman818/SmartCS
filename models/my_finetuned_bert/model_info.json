@@ -1,0 +1,7 @@
+{
+  "model_type": "improved",
+  "pooling_strategy": "mha_pool",
+  "num_attention_heads": 8,
+  "base_model": "E:\\graduation_project\\SmartCS\\models\\chinese-macbert-base",
+  "best_macro_f1": 0.725571972098825
+}
