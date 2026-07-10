@@ -4,343 +4,433 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>管理员会话 - {{ target_user.username }}</title>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
   <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
   <style>
     /* 管理员聊天页面特有样式 */
     :root {
       --userBubble: #eef2ff;
-      --adminBubble: #dcfce7;
+      --adminBubble: #ecfdf5;
     }
-
     [data-theme="dark"] {
-      --userBubble: rgba(99, 102, 241, 0.18);
-      --adminBubble: rgba(5, 150, 105, 0.18);
+      --userBubble: rgba(99, 102, 241, 0.15);
+      --adminBubble: rgba(13, 148, 136, 0.18);
     }
 
-    body{
-      margin:0;
-      min-height:100dvh;
+    body {
+      margin: 0;
+      min-height: 100dvh;
       background: var(--bg-primary);
       font-family: var(--font-sans);
       color: var(--text-primary);
     }
 
-    .layout{
-      max-width: 1180px;
-      margin: 0 auto;
-      padding: 14px;
-      display:grid;
-      grid-template-columns: 1.2fr 0.8fr;
-      gap: 12px;
-      box-sizing:border-box;
+    /* 顶部导航 */
+    .topbar {
+      background: var(--primary);
+      color: white;
+      padding: 0 24px;
+      height: 52px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      box-shadow: 0 2px 8px rgba(13, 148, 136, 0.20);
+      position: sticky;
+      top: 0;
+      z-index: 100;
     }
-
-    @media (max-width: 980px){
-      .layout{ grid-template-columns: 1fr; }
-    }
-
-    .card{
-      background: var(--bg-card);
-      border:1px solid var(--border);
-      border-radius: 14px;
-      box-shadow: 0 8px 24px rgba(0,0,0,0.06);
-      overflow:hidden;
-    }
-
-    .header{
-      padding: 12px 14px;
-      border-bottom:1px solid var(--border);
-      display:flex;
-      align-items:center;
-      justify-content:space-between;
+    .topbar .brand {
+      display: flex;
+      align-items: center;
       gap: 10px;
-      background: rgba(255,255,255,0.75);
-      backdrop-filter: blur(10px);
+      font-size: 15px;
+      font-weight: 600;
+    }
+    .topbar .brand i { font-size: 18px; }
+    .topbar .nav { display: flex; gap: 6px; align-items: center; }
+    .topbar .nav a, .topbar .nav button {
+      color: rgba(255,255,255,0.85);
+      text-decoration: none;
+      padding: 6px 14px;
+      border-radius: 8px;
+      font-size: 13px;
+      font-weight: 500;
+      transition: all var(--transition-fast);
+      background: rgba(255,255,255,0.10);
+      border: none;
+      cursor: pointer;
+      font-family: var(--font-sans);
+    }
+    .topbar .nav a:hover, .topbar .nav button:hover {
+      background: rgba(255,255,255,0.22);
+      color: white;
     }
 
-    .header .left{
-      display:flex;
-      flex-direction:column;
-      gap: 3px;
+    /* 主布局 */
+    .layout {
+      max-width: 1240px;
+      margin: 0 auto;
+      padding: 16px;
+      display: grid;
+      grid-template-columns: 1fr 340px;
+      gap: 16px;
+      box-sizing: border-box;
+    }
+    @media (max-width: 980px) {
+      .layout { grid-template-columns: 1fr; }
+    }
+
+    /* 卡片 */
+    .card {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-lg);
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+    }
+
+    /* 聊天头部 */
+    .chat-top {
+      padding: 14px 16px;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      background: var(--bg-card);
+      flex-shrink: 0;
+    }
+    .chat-top .user-info {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
       min-width: 0;
     }
-    .header .left b{
-      font-size: 14px;
-      overflow:hidden;
-      white-space:nowrap;
-      text-overflow:ellipsis;
+    .chat-top .user-name {
+      font-size: 15px;
+      font-weight: 600;
+      color: var(--text-primary);
+      overflow: hidden;
+      white-space: nowrap;
+      text-overflow: ellipsis;
     }
-    .header .left span{
+    .chat-top .user-meta {
       font-size: 12px;
       color: var(--text-muted);
     }
-
-    .header .right{
-      display:flex;
-      gap: 8px;
-      align-items:center;
-      flex-wrap:wrap;
-      justify-content:flex-end;
+    .chat-top .actions {
+      display: flex;
+      gap: 6px;
+      align-items: center;
+      flex-shrink: 0;
     }
 
-    .btn{
-      border:1px solid rgba(0,0,0,0.10);
-      background:#fff;
-      color:#111827;
-      padding: 8px 12px;
-      border-radius: 12px;
-      cursor:pointer;
-      font-size: 13px;
-      text-decoration:none;
-      display:inline-flex;
-      align-items:center;
-      gap: 8px;
-      user-select:none;
+    /* 状态标签 */
+    .status-badge {
+      font-size: 11px;
+      font-weight: 600;
+      padding: 3px 10px;
+      border-radius: var(--radius-full);
+      white-space: nowrap;
     }
-    .btn:hover{ border-color: rgba(37,99,235,0.35); }
-    .btn.primary{
-      background: var(--primary);
-      border-color: rgba(37,99,235,0.35);
-      color:#fff;
+    .status-badge.normal {
+      background: var(--primary-subtle);
+      color: var(--primary);
+      border: 1px solid rgba(13, 148, 136, 0.20);
     }
-    .btn.danger{
-      background:#fff;
-      border-color: rgba(220,38,38,0.35);
-      color:#991b1b;
+    .status-badge.warning {
+      background: #fef2f2;
+      color: var(--danger);
+      border: 1px solid rgba(220, 38, 38, 0.25);
     }
-
-    .pill{
-      font-size:12px;
-      padding: 4px 10px;
-      border-radius: 999px;
-      border:1px solid rgba(0,0,0,0.10);
-      background:#fff;
-      color:#374151;
+    [data-theme="dark"] .status-badge.warning {
+      background: rgba(220, 38, 38, 0.12);
+      color: #fca5a5;
+      border-color: rgba(220, 38, 38, 0.25);
     }
-    .pill.danger{
-      border-color: rgba(220,38,38,0.35);
-      background: rgba(220,38,38,0.08);
-      color: #991b1b;
-    }
-    .pill.ok{
-      border-color: rgba(16,185,129,0.35);
-      background: rgba(16,185,129,0.08);
-      color: #065f46;
+    [data-theme="dark"] .status-badge.normal {
+      background: rgba(13, 148, 136, 0.12);
+      border-color: rgba(13, 148, 136, 0.22);
     }
 
-    .chat{
-      height: calc(100vh - 210px);
-      overflow:auto;
-      padding: 12px;
-      display:flex;
-      flex-direction:column;
+    /* 聊天消息区 */
+    .chat-area {
+      flex: 1;
+      min-height: calc(100dvh - 200px);
+      max-height: calc(100dvh - 190px);
+      overflow-y: auto;
+      padding: 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+
+    /* 消息 */
+    .msg {
+      display: flex;
       gap: 10px;
-      background: linear-gradient(180deg, rgba(255,255,255,0.25), rgba(255,255,255,0.70));
-    }
-
-    .msg{
-      display:flex;
-      gap: 8px;
-      align-items:flex-end;
+      align-items: flex-end;
       max-width: 100%;
     }
-    .msg.user{ justify-content:flex-start; }
-    .msg.ai{ justify-content:flex-start; }
-    .msg.admin{ justify-content:flex-end; }
+    .msg.user, .msg.ai { justify-content: flex-start; }
+    .msg.admin { justify-content: flex-end; }
 
-    .avatar{
-      width:30px;
-      height:30px;
-      border-radius:50%;
-      background:#e5e7eb;
-      display:flex;
-      align-items:center;
-      justify-content:center;
-      font-size:12px;
-      color:#374151;
-      user-select:none;
-      flex: 0 0 auto;
+    .avt {
+      width: 32px;
+      height: 32px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 12px;
+      font-weight: 600;
+      flex-shrink: 0;
     }
-    .msg.admin .avatar{ background:#d1fae5; }
+    .msg.user .avt, .msg.ai .avt {
+      background: var(--bg-tertiary);
+      color: var(--text-secondary);
+    }
+    .msg.admin .avt {
+      background: var(--primary);
+      color: white;
+    }
 
-    .bubbleWrap{
-      max-width: min(720px, 76vw);
-      display:flex;
-      flex-direction:column;
-      gap: 6px;
+    .bubble-wrap {
+      max-width: min(680px, 72vw);
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
       min-width: 0;
     }
+    .msg.admin .bubble-wrap { align-items: flex-end; }
 
-    .meta{
+    .bubble-meta {
       font-size: 11px;
       color: var(--text-muted);
-      display:flex;
-      gap: 10px;
-      align-items:center;
-      flex-wrap:wrap;
+      display: flex;
+      gap: 8px;
+      align-items: center;
+      flex-wrap: wrap;
     }
+    .bubble-meta .tag {
+      font-size: 10px;
+      padding: 2px 7px;
+      border-radius: var(--radius-full);
+      background: var(--bg-secondary);
+      color: var(--text-muted);
+      font-weight: 500;
+    }
+    .bubble-meta .tag.ok { background: #dcfce7; color: #059669; }
+    .bubble-meta .tag.warn { background: #fee2e2; color: #dc2626; }
+    [data-theme="dark"] .bubble-meta .tag.ok { background: rgba(5,150,105,0.15); color: #6ee7b7; }
+    [data-theme="dark"] .bubble-meta .tag.warn { background: rgba(220,38,38,0.15); color: #fca5a5; }
 
-    .bubble{
-      border-radius: 14px;
-      padding: 10px 12px;
+    .bubble {
+      border-radius: var(--radius-lg);
+      padding: 10px 14px;
       line-height: 1.55;
       font-size: 14px;
-      border:1px solid var(--border);
-      background: #fff;
       white-space: pre-wrap;
       word-break: break-word;
     }
+    .msg.user .bubble { background: var(--userBubble); }
+    .msg.ai .bubble { background: var(--bg-card); border: 1px solid var(--border); }
+    .msg.admin .bubble { background: var(--adminBubble); }
 
-    .msg.user .bubble{ background: var(--userBubble); }
-    .msg.ai .bubble{ background: var(--bg-card); }
-    .msg.admin .bubble{ background: var(--adminBubble); }
-
-    .feedback{
-      font-size:12px;
-      color:#374151;
-      opacity:0.85;
+    .bubble-fb {
+      font-size: 12px;
+      color: var(--text-secondary);
     }
-    .feedback .like{ color:#065f46; }
-    .feedback .dislike{ color:#991b1b; }
 
-    .composer{
-      padding: 10px 12px;
-      border-top:1px solid var(--border);
-      display:flex;
+    /* 输入区 */
+    .composer {
+      padding: 12px 16px;
+      border-top: 1px solid var(--border);
+      display: flex;
       gap: 10px;
-      align-items:center;
-      background: rgba(255,255,255,0.75);
-      backdrop-filter: blur(10px);
+      align-items: center;
+      background: var(--bg-secondary);
+      flex-shrink: 0;
     }
-    .composer input{
-      flex:1;
-      height:40px;
-      border-radius: 12px;
-      border:1px solid var(--border);
-      padding: 0 12px;
-      outline:none;
+    .composer input {
+      flex: 1;
+      height: 40px;
+      border-radius: var(--radius-md);
+      border: 1.5px solid var(--border);
+      padding: 0 14px;
+      outline: none;
       font-size: 14px;
-      background:#fff;
+      font-family: var(--font-sans);
+      background: var(--bg-card);
+      color: var(--text-primary);
+      transition: all var(--transition-fast);
     }
-    .composer input:focus{
-      border-color: rgba(37,99,235,0.35);
-      box-shadow: 0 0 0 4px rgba(37,99,235,0.15);
+    .composer input:focus {
+      border-color: var(--primary);
+      box-shadow: var(--shadow-glow);
     }
+    .composer input::placeholder { color: var(--text-muted); }
 
-    .side{
-      padding: 12px;
-      display:flex;
-      flex-direction:column;
-      gap: 12px;
+    /* 快捷回复侧栏 */
+    .side-panel {
+      padding: 14px;
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+      overflow-y: auto;
     }
-
-    .section{
-      border:1px solid var(--border);
-      border-radius: 14px;
-      background:#fff;
-      overflow:hidden;
+    .section-block {
+      border: 1px solid var(--border);
+      border-radius: var(--radius-lg);
+      background: var(--bg-card);
+      overflow: hidden;
     }
-    .section h3{
-      margin:0;
-      padding: 10px 12px;
+    .section-block h4 {
+      margin: 0;
+      padding: 11px 14px;
       font-size: 13px;
-      border-bottom:1px solid var(--border);
-      background: rgba(249,250,251,0.9);
+      font-weight: 600;
+      color: var(--text-secondary);
+      border-bottom: 1px solid var(--border);
+      background: var(--bg-secondary);
     }
-    .section .body{
-      padding: 10px 12px;
+    .section-block .body {
+      padding: 12px 14px;
     }
-
-    .qrList{
-      display:flex;
-      flex-direction:column;
-      gap: 8px;
-    }
-    .qrItem{
-      border:1px solid rgba(0,0,0,0.08);
-      border-radius: 12px;
+    .qr-list { display: flex; flex-direction: column; gap: 8px; }
+    .qr-item {
+      border: 1px solid var(--border);
+      border-radius: var(--radius-md);
       padding: 10px;
-      display:flex;
-      flex-direction:column;
-      gap: 8px;
-      background:#fff;
+      background: var(--bg-card);
+      transition: border-color var(--transition-fast);
     }
-    .qrItem .content{
+    .qr-item:hover { border-color: var(--primary); }
+    .qr-item .qr-content {
       font-size: 13px;
-      color:#111827;
+      color: var(--text-primary);
       white-space: pre-wrap;
       word-break: break-word;
+      margin-bottom: 8px;
+      line-height: 1.5;
     }
-    .qrItem .actions{
-      display:flex;
-      gap: 8px;
-      flex-wrap:wrap;
+    .qr-item .qr-actions {
+      display: flex;
+      gap: 6px;
+      flex-wrap: wrap;
     }
-    .small{
+    .qr-item textarea {
+      width: 100%;
+      min-height: 72px;
+      border-radius: var(--radius-sm);
+      border: 1.5px solid var(--border);
+      padding: 8px;
+      outline: none;
+      font-size: 13px;
+      font-family: var(--font-sans);
+      box-sizing: border-box;
+      resize: vertical;
+      background: var(--bg-secondary);
+      color: var(--text-primary);
+      margin-bottom: 6px;
+    }
+    .qr-item textarea:focus {
+      border-color: var(--primary);
+      box-shadow: var(--shadow-glow);
+    }
+
+    /* 按钮 */
+    .btn-sm {
+      border: 1px solid var(--border);
+      background: var(--bg-card);
+      color: var(--text-secondary);
+      padding: 5px 11px;
+      border-radius: var(--radius-sm);
+      cursor: pointer;
+      font-size: 12px;
+      font-weight: 500;
+      font-family: var(--font-sans);
+      transition: all var(--transition-fast);
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+    }
+    .btn-sm:hover { border-color: var(--primary); color: var(--primary); background: var(--primary-subtle); }
+    .btn-sm:active { transform: scale(0.96); }
+    .btn-sm.primary {
+      background: var(--primary);
+      border-color: var(--primary);
+      color: white;
+    }
+    .btn-sm.primary:hover { background: var(--primary-dark); }
+    .btn-sm.danger { color: #991b1b; border-color: rgba(220,38,38,0.25); }
+    .btn-sm.danger:hover { background: #fee2e2; border-color: var(--danger); }
+    [data-theme="dark"] .btn-sm.danger { color: #fca5a5; }
+    [data-theme="dark"] .btn-sm.danger:hover { background: rgba(220,38,38,0.12); }
+
+    .help-text {
       font-size: 12px;
       color: var(--text-muted);
-      line-height:1.6;
+      line-height: 1.6;
     }
-    textarea{
-      width:100%;
-      min-height: 88px;
-      border-radius: 12px;
-      border:1px solid rgba(0,0,0,0.12);
-      padding: 10px;
-      outline:none;
-      font-size: 13px;
-      box-sizing:border-box;
-      resize: vertical;
-    }
-    textarea:focus{
-      border-color: rgba(37,99,235,0.35);
-      box-shadow: 0 0 0 4px rgba(37,99,235,0.15);
-    }
-    .row{
-      display:flex;
-      gap: 8px;
-      align-items:center;
-      flex-wrap:wrap;
-      margin-top: 10px;
-    }
-    .row input{
-      flex:1;
-    }
+    .help-text ul { margin: 0; padding-left: 16px; }
+    .help-text li { margin-bottom: 4px; }
+
+    .row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+    .mt-2 { margin-top: 10px; }
   </style>
 </head>
 <body>
-  <div class="layout">
-    <!-- 左侧：会话 -->
-    <div class="card">
-      <div class="header">
-        <div class="left">
-          <b>与用户：{{ target_user.username }} 的会话</b>
-          <span>用户ID：{{ target_user.id }} · 风险计数：{{ target_user.risk_counter }}</span>
-        </div>
-        <div class="right">
-          {% if target_user.needs_intervention %}
-            <span id="pill" class="pill danger">needs_intervention</span>
-          {% else %}
-            <span id="pill" class="pill ok">正常</span>
-          {% endif %}
 
-          <button class="btn" type="button" onclick="resolveUser()">标记已处理</button>
-          <a class="btn" href="/admin">返回列表</a>
-          <a class="btn danger" href="/logout">退出</a>
+  <!-- 顶部导航 -->
+  <div class="topbar">
+    <div class="brand">
+      <i class="fas fa-headset"></i>
+      SmartCS 管理后台
+    </div>
+    <div class="nav">
+      <a href="/admin"><i class="fas fa-arrow-left"></i> 返回列表</a>
+      <a href="/dashboard"><i class="fas fa-chart-bar"></i> 看板</a>
+      <a href="/admin/kb"><i class="fas fa-book"></i> 知识库</a>
+      <a href="/logout"><i class="fas fa-sign-out-alt"></i> 退出</a>
+    </div>
+  </div>
+
+  <div class="layout">
+    <!-- 左侧：聊天会话 -->
+    <div class="card">
+      <div class="chat-top">
+        <div class="user-info">
+          <div class="user-name">
+            <i class="fas fa-user"></i> {{ target_user.username }}
+          </div>
+          <div class="user-meta">
+            ID: {{ target_user.id }} · 风险计数: {{ target_user.risk_counter }}
+          </div>
+        </div>
+        <div class="actions">
+          {% if target_user.needs_intervention %}
+            <span id="pill" class="status-badge warning">需干预</span>
+          {% else %}
+            <span id="pill" class="status-badge normal">正常</span>
+          {% endif %}
+          <button class="btn-sm" type="button" onclick="resolveUser()">
+            <i class="fas fa-check"></i> 标记已处理
+          </button>
         </div>
       </div>
 
-      <div id="chat" class="chat">
+      <div id="chat" class="chat-area">
         {% for r in history %}
           {% if r.text %}
             <div class="msg user" data-id="{{ r.id }}">
-              <div class="avatar">用</div>
-              <div class="bubbleWrap">
-                <div class="meta">
+              <div class="avt">U</div>
+              <div class="bubble-wrap">
+                <div class="bubble-meta">
                   <span>用户</span>
                   <span>{{ r.timestamp.strftime('%m-%d %H:%M') if r.timestamp else '' }}</span>
-                  <span class="pill">{{ r.emotion }}</span>
-                  <span class="pill">conf={{ "%.2f"|format(r.confidence or 0) }}</span>
+                  <span class="tag">{{ r.emotion }}</span>
                 </div>
                 <div class="bubble">{{ r.text }}</div>
               </div>
@@ -348,444 +438,325 @@
           {% endif %}
 
           {% if r.reply %}
-            {% if r.is_admin_reply %}
-              <div class="msg admin" data-id="{{ r.id }}">
-                <div class="bubbleWrap">
-                  <div class="meta">
+            <div class="msg {{ 'admin' if r.is_admin_reply else 'ai' }}" data-id="{{ r.id }}">
+              {% if r.is_admin_reply %}
+                <div class="bubble-wrap">
+                  <div class="bubble-meta">
                     <span>管理员</span>
                     <span>{{ r.timestamp.strftime('%m-%d %H:%M') if r.timestamp else '' }}</span>
                   </div>
                   <div class="bubble">{{ r.reply }}</div>
                 </div>
-                <div class="avatar">人</div>
-              </div>
-            {% else %}
-              <div class="msg ai" data-id="{{ r.id }}">
-                <div class="avatar">AI</div>
-                <div class="bubbleWrap">
-                  <div class="meta">
+                <div class="avt">人</div>
+              {% else %}
+                <div class="avt">AI</div>
+                <div class="bubble-wrap">
+                  <div class="bubble-meta">
                     <span>AI</span>
                     <span>{{ r.timestamp.strftime('%m-%d %H:%M') if r.timestamp else '' }}</span>
-                    <span class="pill">{{ r.emotion }}</span>
-                    <span class="pill">conf={{ "%.2f"|format(r.confidence or 0) }}</span>
-                    <span class="pill">
-                      {% if r.feedback == 1 %}
-                        👍 like
-                      {% elif r.feedback == -1 %}
-                        👎 dislike
-                      {% else %}
-                        · no feedback
-                      {% endif %}
-                    </span>
-                  </div>
-                  <div class="bubble">{{ r.reply }}</div>
-                  <div class="feedback">
+                    <span class="tag">{{ r.emotion }}</span>
                     {% if r.feedback == 1 %}
-                      用户反馈：<b class="like">👍</b>
+                      <span class="tag ok">赞</span>
                     {% elif r.feedback == -1 %}
-                      用户反馈：<b class="dislike">👎</b>
-                    {% else %}
-                      用户反馈：无
+                      <span class="tag warn">踩</span>
                     {% endif %}
                   </div>
+                  <div class="bubble">{{ r.reply }}</div>
+                  {% if r.feedback %}
+                    <div class="bubble-fb">用户反馈：{{ '赞' if r.feedback == 1 else '踩' }}</div>
+                  {% endif %}
                 </div>
-              </div>
-            {% endif %}
+              {% endif %}
+            </div>
           {% endif %}
         {% endfor %}
       </div>
 
       <div class="composer">
-        <input id="replyInput" placeholder="输入人工回复，回车发送…" autocomplete="off" />
-        <button class="btn primary" type="button" id="sendBtn">发送</button>
+        <input id="replyInput" placeholder="输入人工回复，回车发送..." autocomplete="off" />
+        <button class="btn-sm primary" type="button" id="sendBtn">
+          <i class="fas fa-paper-plane"></i> 发送
+        </button>
       </div>
     </div>
 
-    <!-- 右侧：快捷回复与说明 -->
+    <!-- 右侧：快捷回复 -->
     <div class="card">
-      <div class="side">
-        <div class="section">
-          <h3>快捷回复（可一键填充）</h3>
+      <div class="side-panel">
+        <div class="section-block">
+          <h4><i class="fas fa-bolt"></i> 快捷回复</h4>
           <div class="body">
-            <div class="qrList" id="qrList">
-              <!-- JS 动态渲染 -->
-            </div>
-
-            <div class="row">
-              <button class="btn primary" type="button" onclick="reloadQuickReplies()">刷新列表</button>
+            <div class="qr-list" id="qrList"></div>
+            <div class="row mt-2">
+              <button class="btn-sm" type="button" onclick="reloadQuickReplies()">
+                <i class="fas fa-sync-alt"></i> 刷新
+              </button>
             </div>
           </div>
         </div>
 
-        <div class="section">
-          <h3>新增快捷回复</h3>
+        <div class="section-block">
+          <h4><i class="fas fa-plus-circle"></i> 新增快捷回复</h4>
           <div class="body">
             <textarea id="qrNewText" placeholder="输入快捷回复内容..."></textarea>
-            <div class="row">
-              <button class="btn primary" type="button" onclick="createQuickReply()">新增</button>
+            <div class="row mt-2">
+              <button class="btn-sm primary" type="button" onclick="createQuickReply()">
+                <i class="fas fa-check"></i> 新增
+              </button>
             </div>
-            <div class="small">支持新增/编辑/删除。编辑不会影响历史消息。</div>
+            <p class="help-text mt-2">支持新增、编辑、删除。编辑不影响历史消息。</p>
           </div>
         </div>
 
-        <div class="section">
-          <h3>说明</h3>
-          <div class="body small">
+        <div class="section-block">
+          <h4><i class="fas fa-info-circle"></i> 说明</h4>
+          <div class="body help-text">
             <ul>
-              <li>该页会自动轮询新消息，支持实时查看用户输入、AI回复与用户反馈。</li>
-              <li>当用户处于干预模式时：AI 对用户消息会保持沉默，直到管理员发出人工回复。</li>
-              <li>“标记已处理”将解除 needs_intervention，恢复系统正常流程。</li>
+              <li>系统每 3 秒轮询新消息，实时显示用户输入、AI 回复与反馈。</li>
+              <li>用户处于干预模式时 AI 保持沉默，直到管理员发出人工回复。</li>
+              <li>"标记已处理"解除 needs_intervention，恢复正常流程。</li>
             </ul>
           </div>
         </div>
       </div>
     </div>
-
   </div>
 
   <script>
-      const targetUserId = {{ target_user.id }};
-      const chatEl = document.getElementById('chat');
-      const replyInput = document.getElementById('replyInput');
-      const sendBtn = document.getElementById('sendBtn');
-      const qrListEl = document.getElementById('qrList');
-      const pillEl = document.getElementById('pill');
+    const targetUserId = {{ target_user.id }};
+    const chatEl = document.getElementById('chat');
+    const replyInput = document.getElementById('replyInput');
+    const sendBtn = document.getElementById('sendBtn');
+    const qrListEl = document.getElementById('qrList');
+    const pillEl = document.getElementById('pill');
+    let lastId = 0;
 
-      let lastId = 0;
+    (function initLastId() {
+      const nodes = chatEl.querySelectorAll('[data-id]');
+      for (const n of nodes) {
+        const id = parseInt(n.dataset.id || '0', 10);
+        if (id > lastId) lastId = id;
+      }
+      scrollToBottom();
+    })();
 
-      // 初始化 lastId 为页面上最后一条消息的 id
-      (function initLastId(){
-        const nodes = chatEl.querySelectorAll('[data-id]');
-        for(const n of nodes){
-          const id = parseInt(n.dataset.id || '0', 10);
-          if(id > lastId) lastId = id;
-        }
-        scrollToBottom();
-      })();
+    function scrollToBottom() { chatEl.scrollTop = chatEl.scrollHeight; }
 
-      function scrollToBottom(){
-        chatEl.scrollTop = chatEl.scrollHeight;
+    function escapeHtml(str) {
+      return (str ?? '').replaceAll('&', '&amp;').replaceAll('<', '&lt;')
+        .replaceAll('>', '&gt;').replaceAll('"', '&quot;').replaceAll("'", '&#039;');
+    }
+
+    function fmtTime(tsIso) {
+      try {
+        if (!tsIso) return '';
+        let t = tsIso;
+        if (typeof t === 'string' && !t.includes('Z') && !t.includes('+')) t += 'Z';
+        const d = new Date(t);
+        return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+      } catch (e) { return ''; }
+    }
+
+    function addMessageToView(m) {
+      if (m.text && m.text.trim()) {
+        const div = document.createElement('div');
+        div.className = 'msg user';
+        div.dataset.id = m.id;
+        div.innerHTML = `
+          <div class="avt">U</div>
+          <div class="bubble-wrap">
+            <div class="bubble-meta">
+              <span>用户</span><span>${escapeHtml(fmtTime(m.timestamp))}</span>
+              <span class="tag">${escapeHtml(m.emotion || 'neutral')}</span>
+            </div>
+            <div class="bubble">${escapeHtml(m.text)}</div>
+          </div>`;
+        chatEl.appendChild(div);
       }
 
-      function escapeHtml(str){
-        return (str ?? '')
-          .replaceAll('&','&amp;')
-          .replaceAll('<','&lt;')
-          .replaceAll('>','&gt;')
-          .replaceAll('"','&quot;')
-          .replaceAll("'","&#039;");
-      }
-
-      // 【修改 1】增强版时间格式化：自动修复 UTC 时区
-      function fmtTime(tsIso){
-        try{
-          if (!tsIso) return '';
-
-          // 如果时间字符串里没有 'Z' (UTC标记) 也没有 '+' (时区标记)，手动加上 'Z'
-          // 这样浏览器就会把它当做 UTC 时间，自动转换为你的本地时间（+8小时）
-          let timeString = tsIso;
-          if (typeof timeString === 'string' && !timeString.includes('Z') && !timeString.includes('+')) {
-              timeString += 'Z';
-          }
-
-          const d = new Date(timeString);
-          const hh = String(d.getHours()).padStart(2,'0');
-          const mm = String(d.getMinutes()).padStart(2,'0');
-          return `${hh}:${mm}`;
-        }catch(e){ return ''; }
-      }
-
-      function addMessageToView(m){
-        // 这里的逻辑保持不变
-        if(m.text && m.text.trim()){
+      if (m.reply && m.reply.trim()) {
+        if (m.is_admin_reply) {
           const div = document.createElement('div');
-          div.className = 'msg user';
+          div.className = 'msg admin';
           div.dataset.id = m.id;
           div.innerHTML = `
-            <div class="avatar">用</div>
-            <div class="bubbleWrap">
-              <div class="meta">
-                <span>用户</span>
-                <span>${escapeHtml(fmtTime(m.timestamp))}</span>
-                <span class="pill">${escapeHtml(m.emotion || 'neutral')}</span>
-                <span class="pill">conf=${Number(m.confidence || 0).toFixed(2)}</span>
-              </div>
-              <div class="bubble">${escapeHtml(m.text)}</div>
+            <div class="bubble-wrap">
+              <div class="bubble-meta"><span>管理员</span><span>${escapeHtml(fmtTime(m.timestamp))}</span></div>
+              <div class="bubble">${escapeHtml(m.reply)}</div>
             </div>
-          `;
+            <div class="avt">人</div>`;
+          chatEl.appendChild(div);
+        } else {
+          const fbTag = m.feedback === 1 ? '<span class="tag ok">赞</span>'
+            : m.feedback === -1 ? '<span class="tag warn">踩</span>' : '';
+          const fbLine = m.feedback === 1 ? '用户反馈：赞'
+            : m.feedback === -1 ? '用户反馈：踩' : '';
+
+          const div = document.createElement('div');
+          div.className = 'msg ai';
+          div.dataset.id = m.id;
+          div.innerHTML = `
+            <div class="avt">AI</div>
+            <div class="bubble-wrap">
+              <div class="bubble-meta">
+                <span>AI</span><span>${escapeHtml(fmtTime(m.timestamp))}</span>
+                <span class="tag">${escapeHtml(m.emotion || 'neutral')}</span>${fbTag}
+              </div>
+              <div class="bubble">${escapeHtml(m.reply)}</div>
+              ${fbLine ? `<div class="bubble-fb">${fbLine}</div>` : ''}
+            </div>`;
           chatEl.appendChild(div);
         }
-
-        if(m.reply && m.reply.trim()){
-          if(m.is_admin_reply){
-            const div = document.createElement('div');
-            div.className = 'msg admin';
-            div.dataset.id = m.id;
-            div.innerHTML = `
-              <div class="bubbleWrap">
-                <div class="meta">
-                  <span>管理员</span>
-                  <span>${escapeHtml(fmtTime(m.timestamp))}</span>
-                </div>
-                <div class="bubble">${escapeHtml(m.reply)}</div>
-              </div>
-              <div class="avatar">人</div>
-            `;
-            chatEl.appendChild(div);
-          }else{
-            const fbText = (m.feedback === 1) ? '👍 like' : (m.feedback === -1) ? '👎 dislike' : '· no feedback';
-            const fbLine = (m.feedback === 1) ? '用户反馈：<b class="like">👍</b>' :
-                           (m.feedback === -1) ? '用户反馈：<b class="dislike">👎</b>' : '用户反馈：无';
-
-            const div = document.createElement('div');
-            div.className = 'msg ai';
-            div.dataset.id = m.id;
-            div.innerHTML = `
-              <div class="avatar">AI</div>
-              <div class="bubbleWrap">
-                <div class="meta">
-                  <span>AI</span>
-                  <span>${escapeHtml(fmtTime(m.timestamp))}</span>
-                  <span class="pill">${escapeHtml(m.emotion || 'neutral')}</span>
-                  <span class="pill">conf=${Number(m.confidence || 0).toFixed(2)}</span>
-                  <span class="pill">${fbText}</span>
-                </div>
-                <div class="bubble">${escapeHtml(m.reply)}</div>
-                <div class="feedback">${fbLine}</div>
-              </div>
-            `;
-            chatEl.appendChild(div);
-          }
-        }
-        scrollToBottom();
       }
+      scrollToBottom();
+    }
 
-      async function poll(){
-        try{
-          const res = await fetch(`/api/admin/get_messages/${targetUserId}?last_id=${lastId}`);
-          const data = await res.json();
-          if(!res.ok) return;
-
-          const msgs = data.messages || [];
-          for(const m of msgs){
-            // 只有当消息ID确实大于 lastId 时才处理
-            if(m.id > lastId) {
-               lastId = m.id;
-               addMessageToView(m);
-            }
-          }
-        }catch(e){
-          // ignore
+    async function poll() {
+      try {
+        const res = await fetch(`/api/admin/get_messages/${targetUserId}?last_id=${lastId}`);
+        const data = await res.json();
+        if (!res.ok) return;
+        for (const m of (data.messages || [])) {
+          if (m.id > lastId) { lastId = m.id; addMessageToView(m); }
         }
+      } catch (e) { /* ignore */ }
+    }
+
+    async function sendAdminReply() {
+      const text = (replyInput.value || '').trim();
+      if (!text) return;
+      sendBtn.disabled = true;
+      try {
+        const res = await fetch('/api/admin/reply', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ user_id: targetUserId, reply: text })
+        });
+        const data = await res.json();
+        if (!res.ok) { alert('发送失败'); sendBtn.disabled = false; return; }
+        replyInput.value = '';
+        replyInput.focus();
+        await poll();
+      } catch (e) { alert('网络异常，发送失败'); }
+      finally { sendBtn.disabled = false; }
+    }
+
+    async function resolveUser() {
+      if (!confirm('确认解除该用户干预状态？')) return;
+      try {
+        const res = await fetch('/api/admin/resolve_user', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ user_id: targetUserId })
+        });
+        if (!res.ok) { alert('操作失败'); return; }
+        pillEl.className = 'status-badge normal';
+        pillEl.textContent = '正常';
+      } catch (e) { alert('网络异常'); }
+    }
+
+    // Quick Replies
+    function renderQuickReplies(items) {
+      qrListEl.innerHTML = '';
+      if (!items || items.length === 0) {
+        qrListEl.innerHTML = '<div class="help-text">暂无快捷回复，可在下方新增。</div>';
+        return;
       }
-
-      async function sendAdminReply(){
-        const text = (replyInput.value || '').trim();
-        if(!text) return;
-        sendBtn.disabled = true;
-
-        try{
-          const res = await fetch('/api/admin/reply', {
-            method: 'POST',
-            headers: {'Content-Type':'application/json'},
-            body: JSON.stringify({user_id: targetUserId, reply: text})
-          });
-          const data = await res.json();
-          if(!res.ok){
-            alert('发送失败：' + (data.status || res.status));
-            sendBtn.disabled = false;
-            return;
-          }
-
-          // 【修改 2】删除了手动 addMessageToView 的代码
-          // 改为直接调用 poll()，从服务器拉取刚才发送的消息
-          // 这样既能保证显示，又不会因为“本地加一次+服务器拉一次”导致重复
-
-          replyInput.value = '';
-          replyInput.focus();
-
-          // 立即触发一次轮询，让消息马上显示出来
-          await poll();
-
-        }catch(e){
-          alert('网络异常，发送失败');
-        }finally{
-          sendBtn.disabled = false;
-        }
-      }
-
-      async function resolveUser(){
-        if(!confirm('确认解除该用户干预状态？')) return;
-        try{
-          const res = await fetch('/api/admin/resolve_user', {
-            method: 'POST',
-            headers: {'Content-Type':'application/json'},
-            body: JSON.stringify({user_id: targetUserId})
-          });
-          const data = await res.json();
-          if(!res.ok){
-            alert('操作失败：' + (data.status || res.status));
-            return;
-          }
-          pillEl.className = 'pill ok';
-          pillEl.textContent = '正常';
-          alert('已解除干预。');
-        }catch(e){
-          alert('网络异常，操作失败');
-        }
-      }
-
-      // =========================
-      // Quick Replies UI + CRUD (保持原样)
-      // =========================
-      function renderQuickReplies(items){
-        qrListEl.innerHTML = '';
-        if(!items || items.length === 0){
-          qrListEl.innerHTML = `<div class="small">暂无快捷回复，可在下方新增。</div>`;
-          return;
-        }
-
-        for(const it of items){
-          const div = document.createElement('div');
-          div.className = 'qrItem';
-          div.dataset.id = it.id;
-
-          div.innerHTML = `
-            <div class="content" id="qr-content-${it.id}">${escapeHtml(it.content)}</div>
-            <div class="actions">
-              <button class="btn primary" type="button" onclick="useQuickReply(${it.id})">填充</button>
-              <button class="btn" type="button" onclick="startEditQuickReply(${it.id})">编辑</button>
-              <button class="btn danger" type="button" onclick="deleteQuickReply(${it.id})">删除</button>
+      for (const it of items) {
+        const div = document.createElement('div');
+        div.className = 'qr-item';
+        div.dataset.id = it.id;
+        div.innerHTML = `
+          <div class="qr-content" id="qr-content-${it.id}">${escapeHtml(it.content)}</div>
+          <div class="qr-actions">
+            <button class="btn-sm primary" onclick="useQuickReply(${it.id})"><i class="fas fa-arrow-left"></i> 填充</button>
+            <button class="btn-sm" onclick="startEditQuickReply(${it.id})"><i class="fas fa-edit"></i> 编辑</button>
+            <button class="btn-sm danger" onclick="deleteQuickReply(${it.id})"><i class="fas fa-trash"></i> 删除</button>
+          </div>
+          <div id="qr-edit-${it.id}" style="display:none;">
+            <textarea id="qr-edit-text-${it.id}"></textarea>
+            <div class="row">
+              <button class="btn-sm primary" onclick="saveQuickReply(${it.id})">保存</button>
+              <button class="btn-sm" onclick="cancelEditQuickReply(${it.id})">取消</button>
             </div>
-            <div id="qr-edit-${it.id}" style="display:none;">
-              <textarea id="qr-edit-text-${it.id}"></textarea>
-              <div class="row">
-                <button class="btn primary" type="button" onclick="saveQuickReply(${it.id})">保存</button>
-                <button class="btn" type="button" onclick="cancelEditQuickReply(${it.id})">取消</button>
-              </div>
-            </div>
-          `;
-
-          qrListEl.appendChild(div);
-        }
+          </div>`;
+        qrListEl.appendChild(div);
       }
+    }
 
-      async function reloadQuickReplies(){
-        try{
-          const res = await fetch('/api/admin/quick_reply');
-          const data = await res.json();
-          if(!res.ok){
-            alert('加载快捷回复失败');
-            return;
-          }
-          renderQuickReplies(data.items || []);
-        }catch(e){
-          alert('网络异常，加载失败');
-        }
-      }
+    async function reloadQuickReplies() {
+      try {
+        const res = await fetch('/api/admin/quick_reply');
+        const data = await res.json();
+        if (!res.ok) { alert('加载失败'); return; }
+        renderQuickReplies(data.items || []);
+      } catch (e) { alert('网络异常'); }
+    }
 
-      function useQuickReply(id){
-        const contentEl = document.getElementById(`qr-content-${id}`);
-        const text = (contentEl?.textContent || '').trim();
-        if(text){
-          replyInput.value = text;
-          replyInput.focus();
-        }
-      }
+    function useQuickReply(id) {
+      const el = document.getElementById(`qr-content-${id}`);
+      const text = (el?.textContent || '').trim();
+      if (text) { replyInput.value = text; replyInput.focus(); }
+    }
 
-      function startEditQuickReply(id){
-        const contentEl = document.getElementById(`qr-content-${id}`);
-        const editorWrap = document.getElementById(`qr-edit-${id}`);
-        const ta = document.getElementById(`qr-edit-text-${id}`);
+    function startEditQuickReply(id) {
+      const contentEl = document.getElementById(`qr-content-${id}`);
+      const editorWrap = document.getElementById(`qr-edit-${id}`);
+      const ta = document.getElementById(`qr-edit-text-${id}`);
+      if (!contentEl || !editorWrap || !ta) return;
+      ta.value = contentEl.textContent || '';
+      editorWrap.style.display = 'block';
+    }
 
-        if(!contentEl || !editorWrap || !ta) return;
-        ta.value = contentEl.textContent || '';
-        editorWrap.style.display = 'block';
-      }
+    function cancelEditQuickReply(id) {
+      const el = document.getElementById(`qr-edit-${id}`);
+      if (el) el.style.display = 'none';
+    }
 
-      function cancelEditQuickReply(id){
-        const editorWrap = document.getElementById(`qr-edit-${id}`);
-        if(editorWrap) editorWrap.style.display = 'none';
-      }
+    async function saveQuickReply(id) {
+      const ta = document.getElementById(`qr-edit-text-${id}`);
+      const content = (ta?.value || '').trim();
+      if (!content) { alert('内容不能为空'); return; }
+      try {
+        const res = await fetch(`/api/admin/quick_reply/${id}`, {
+          method: 'PUT', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ content })
+        });
+        if (!res.ok) { alert('保存失败'); return; }
+        await reloadQuickReplies();
+      } catch (e) { alert('网络异常'); }
+    }
 
-      async function saveQuickReply(id){
-        const ta = document.getElementById(`qr-edit-text-${id}`);
-        const content = (ta?.value || '').trim();
-        if(!content){
-          alert('内容不能为空');
-          return;
-        }
-        try{
-          const res = await fetch(`/api/admin/quick_reply/${id}`, {
-            method: 'PUT',
-            headers: {'Content-Type':'application/json'},
-            body: JSON.stringify({content})
-          });
-          const data = await res.json();
-          if(!res.ok){
-            alert('保存失败：' + (data.status || res.status));
-            return;
-          }
-          await reloadQuickReplies();
-        }catch(e){
-          alert('网络异常，保存失败');
-        }
-      }
+    async function deleteQuickReply(id) {
+      if (!confirm('确认删除？')) return;
+      try {
+        const res = await fetch(`/api/admin/quick_reply/${id}`, { method: 'DELETE' });
+        if (!res.ok) { alert('删除失败'); return; }
+        await reloadQuickReplies();
+      } catch (e) { alert('网络异常'); }
+    }
 
-      async function deleteQuickReply(id){
-        if(!confirm('确认删除该快捷回复？')) return;
-        try{
-          const res = await fetch(`/api/admin/quick_reply/${id}`, { method:'DELETE' });
-          const data = await res.json();
-          if(!res.ok){
-            alert('删除失败：' + (data.status || res.status));
-            return;
-          }
-          await reloadQuickReplies();
-        }catch(e){
-          alert('网络异常，删除失败');
-        }
-      }
+    async function createQuickReply() {
+      const ta = document.getElementById('qrNewText');
+      const content = (ta.value || '').trim();
+      if (!content) { alert('请输入内容'); return; }
+      try {
+        const res = await fetch('/api/admin/quick_reply', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ content })
+        });
+        if (!res.ok) { alert('新增失败'); return; }
+        ta.value = '';
+        await reloadQuickReplies();
+      } catch (e) { alert('网络异常'); }
+    }
 
-      async function createQuickReply(){
-        const ta = document.getElementById('qrNewText');
-        const content = (ta.value || '').trim();
-        if(!content){
-          alert('请输入内容');
-          return;
-        }
-        try{
-          const res = await fetch('/api/admin/quick_reply', {
-            method:'POST',
-            headers:{'Content-Type':'application/json'},
-            body: JSON.stringify({content})
-          });
-          const data = await res.json();
-          if(!res.ok){
-            alert('新增失败：' + (data.status || res.status));
-            return;
-          }
-          ta.value = '';
-          await reloadQuickReplies();
-        }catch(e){
-          alert('网络异常，新增失败');
-        }
-      }
+    replyInput.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') { e.preventDefault(); sendAdminReply(); }
+    });
+    sendBtn.addEventListener('click', sendAdminReply);
 
-      // send on enter
-      replyInput.addEventListener('keydown', (e) => {
-        if(e.key === 'Enter'){
-          e.preventDefault();
-          sendAdminReply();
-        }
-      });
-      sendBtn.addEventListener('click', sendAdminReply);
-
-      // boot
-      reloadQuickReplies();
-      setInterval(poll, 3000);
-      poll();
+    reloadQuickReplies();
+    setInterval(poll, 3000);
+    poll();
   </script>
-
 </body>
 </html>
