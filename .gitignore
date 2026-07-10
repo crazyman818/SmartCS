@@ -38,3 +38,4 @@ models/__pycache__/
 .DS_Store
 Thumbs.db
 skills-lock.json
+tests/
