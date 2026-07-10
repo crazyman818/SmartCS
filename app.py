@@ -145,6 +145,13 @@ socketio = SocketIO(
     ping_interval=25
 )
 
+# 注册集中化错误处理 (backend-patterns)
+from utils.errors import register_error_handlers, AppError, NotFoundError, ValidationError, ForbiddenError
+register_error_handlers(app)
+
+# 延迟导入 Service 和 Repository 层 (避免循环依赖)
+# 在路由中通过 from services.xxx import XxxService 按需导入
+
 # ============================================================
 # LLM config (DeepSeek / OpenAI-compatible)
 # ============================================================
@@ -1049,6 +1056,14 @@ def admin_has_intervened(user_id: int) -> bool:
     )
 
 
+# Service / Repository 层导入（在 app/db 初始化之后，无循环依赖）
+from services.chat_service import ChatService
+from services.crisis_service import CrisisService
+from services.user_service import UserService
+from repositories.data_access import (ChatRepository, UserRepository, OrderRepository,
+                                       QuickReplyRepository, KnowledgeQARepository,
+                                       RefundRepository, IntentStatRepository)
+
 # ============================================================
 # Routes: auth pages
 # ============================================================
@@ -1352,27 +1367,7 @@ def api_get_messages():
         return jsonify({"status": "forbidden"}), 403
 
     last_id = request.args.get("last_id", default=0, type=int)
-
-    new_records = (
-        ChatRecord.query.filter(ChatRecord.user_id == current_user.id, ChatRecord.id > last_id)
-        .order_by(ChatRecord.id.asc())
-        .all()
-    )
-
-    msgs: List[Dict[str, Any]] = []
-    for r in new_records:
-        msgs.append(
-            {
-                "id": r.id,
-                "text": r.text,
-                "reply": r.reply,
-                "emotion": r.emotion,
-                "confidence": r.confidence,
-                "timestamp": r.timestamp.isoformat(),
-                "is_admin_reply": bool(r.is_admin_reply),
-                "feedback": int(r.feedback or 0),
-            }
-        )
+    msgs = ChatService.get_messages_for_user(current_user.id, last_id)
 
     return jsonify({"status": "success", "messages": msgs, "intervention": bool(current_user.needs_intervention)})
 
@@ -1867,22 +1862,12 @@ def api_crisis_stats():
     """获取危机干预统计数据"""
     if not current_user.is_admin:
         return jsonify({'status': 'forbidden'}), 403
-
-    yellow_count = User.query.filter_by(
-        is_admin=False, risk_level='yellow', needs_intervention=True
-    ).count()
-    red_count = User.query.filter_by(
-        is_admin=False, risk_level='red', needs_intervention=True
-    ).count()
-    total_intervention = User.query.filter_by(
-        is_admin=False, needs_intervention=True
-    ).count()
-
+    stats = CrisisService.get_stats()
     return jsonify({
         'status': 'success',
-        'yellow_warnings': yellow_count,
-        'red_warnings': red_count,
-        'total_interventions': total_intervention,
+        'yellow_warnings': stats['yellow'],
+        'red_warnings': stats['red'],
+        'total_interventions': stats['total'],
     })
 
 
