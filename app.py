@@ -127,6 +127,32 @@ def _register_sqlite_pragma():
         event.listens_for(_sa.engine.Engine, "connect")(_set_sqlite_pragma)
         _set_pragma_registered = True
 
+
+def _ensure_indexes():
+    """确保数据库索引存在（对已有数据库增量创建）"""
+    from sqlalchemy import text
+    indexes = [
+        'CREATE INDEX IF NOT EXISTS idx_chat_user_timestamp ON chat_record(user_id, timestamp)',
+        'CREATE INDEX IF NOT EXISTS idx_chat_emotion ON chat_record(emotion)',
+        'CREATE INDEX IF NOT EXISTS idx_chat_is_admin ON chat_record(is_admin_reply)',
+        'CREATE INDEX IF NOT EXISTS idx_chat_feedback ON chat_record(feedback)',
+        'CREATE INDEX IF NOT EXISTS idx_user_needs_intervention ON user(needs_intervention)',
+        'CREATE INDEX IF NOT EXISTS idx_user_risk_level ON user(risk_level)',
+        'CREATE INDEX IF NOT EXISTS idx_order_user_id ON orders(user_id)',
+        'CREATE INDEX IF NOT EXISTS idx_refund_user_id ON refund_requests(user_id)',
+        'CREATE INDEX IF NOT EXISTS idx_refund_status ON refund_requests(status)',
+        'CREATE INDEX IF NOT EXISTS idx_refund_created ON refund_requests(created_at)',
+        'CREATE INDEX IF NOT EXISTS idx_kb_enabled ON knowledge_qa(enabled)',
+        'CREATE INDEX IF NOT EXISTS idx_intent_timestamp ON intent_stats(timestamp)',
+    ]
+    for sql in indexes:
+        try:
+            db.session.execute(text(sql))
+        except Exception:
+            pass
+    db.session.commit()
+
+
 # SocketIO 配置
 app.config["SOCKETIO_MESSAGE_QUEUE"] = os.environ.get("SOCKETIO_MESSAGE_QUEUE", None)
 app.config["SOCKETIO_CORS_ALLOWED_ORIGINS"] = "*"
@@ -413,12 +439,14 @@ def analyze_user_persona(user_id):
 # Database models
 # ============================================================
 class User(UserMixin, db.Model):
+    __table_args__ = (
+        db.Index('idx_user_needs_intervention', 'needs_intervention'),
+        db.Index('idx_user_risk_level', 'risk_level'),
+    )
     id = db.Column(db.Integer, primary_key=True)
-
-    username = db.Column(db.String(150), unique=True, nullable=False)
+    username = db.Column(db.String(150), unique=True, nullable=False, index=True)
     password_hash = db.Column(db.String(150), nullable=False)
-
-    is_admin = db.Column(db.Boolean, default=False)
+    is_admin = db.Column(db.Boolean, default=False, index=True)
 
     persona_tags = db.Column(db.String(255), default="新用户")  # 例如: "急躁, 价格敏感, 需安抚"
     persona_summary = db.Column(db.Text, default="暂无详细画像")  # 例如: "用户经常询问退款问题，对服务态度要求较高..."
@@ -447,8 +475,9 @@ class User(UserMixin, db.Model):
 # [新增] 订单模型
 class Order(db.Model):
     __tablename__ = 'orders'
+    __table_args__ = (db.Index('idx_order_user_id', 'user_id'),)
     id = db.Column(db.Integer, primary_key=True)
-    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False, index=True)
 
     order_number = db.Column(db.String(50), unique=True, nullable=False)  # 订单号
     item_name = db.Column(db.String(100), nullable=False)  # 商品名
@@ -461,9 +490,14 @@ class Order(db.Model):
 
 
 class ChatRecord(db.Model):
+    __table_args__ = (
+        db.Index('idx_chat_user_timestamp', 'user_id', 'timestamp'),
+        db.Index('idx_chat_emotion', 'emotion'),
+        db.Index('idx_chat_is_admin', 'is_admin_reply'),
+        db.Index('idx_chat_feedback', 'feedback'),
+    )
     id = db.Column(db.Integer, primary_key=True)
-
-    user_id = db.Column(db.Integer, db.ForeignKey("user.id"), nullable=False)
+    user_id = db.Column(db.Integer, db.ForeignKey("user.id"), nullable=False, index=True)
 
     # 用户输入与系统回复
     text = db.Column(db.Text, default="")
@@ -495,8 +529,13 @@ class QuickReply(db.Model):
 class RefundRequest(db.Model):
     """退款工单：用户发起，管理员审批"""
     __tablename__ = 'refund_requests'
+    __table_args__ = (
+        db.Index('idx_refund_user_id', 'user_id'),
+        db.Index('idx_refund_status', 'status'),
+        db.Index('idx_refund_created', 'created_at'),
+    )
     id = db.Column(db.Integer, primary_key=True)
-    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False, index=True)
     order_id = db.Column(db.Integer, db.ForeignKey('orders.id'), nullable=True)
 
     reason = db.Column(db.Text, nullable=False)
@@ -517,6 +556,7 @@ class RefundRequest(db.Model):
 class KnowledgeQA(db.Model):
     """知识库：结构化 Q&A，用于检索增强（RAG）"""
     __tablename__ = "knowledge_qa"
+    __table_args__ = (db.Index('idx_kb_enabled', 'enabled'),)
 
     id = db.Column(db.Integer, primary_key=True)
     question = db.Column(db.Text, nullable=False)
@@ -879,10 +919,11 @@ def classify_intent(text: str) -> str:
 class IntentStat(db.Model):
     """意图统计模型 - 对应论文第4章数据分析模块"""
     __tablename__ = "intent_stats"
+    __table_args__ = (db.Index('idx_intent_timestamp', 'timestamp'),)
     id = db.Column(db.Integer, primary_key=True)
     intent = db.Column(db.String(50), nullable=False, index=True)
     user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=True)
-    timestamp = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
+    timestamp = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc), index=True)
 
     # relationship to User
     user = db.relationship('User', backref=db.backref('intent_stats', lazy=True))
@@ -2308,8 +2349,11 @@ def api_admin_refunds():
     if not current_user.is_admin:
         return jsonify({'status': 'forbidden'}), 403
 
+    from sqlalchemy.orm import joinedload
     status_filter = request.args.get('status', '')
-    query = RefundRequest.query
+    query = RefundRequest.query.options(
+        joinedload(RefundRequest.user), joinedload(RefundRequest.order)
+    )
     if status_filter:
         query = query.filter_by(status=status_filter)
     refunds = query.order_by(RefundRequest.created_at.desc()).all()
@@ -2320,13 +2364,10 @@ def api_admin_refunds():
         if r.order:
             order_info = f'{r.order.item_name}（{r.order.order_number}）'
         result.append({
-            'id': r.id,
-            'user_id': r.user_id,
+            'id': r.id, 'user_id': r.user_id,
             'username': r.user.username if r.user else '',
-            'order_info': order_info,
-            'reason': r.reason,
-            'status': r.status,
-            'admin_note': r.admin_note or '',
+            'order_info': order_info, 'reason': r.reason,
+            'status': r.status, 'admin_note': r.admin_note or '',
             'created_at': r.created_at.strftime('%Y-%m-%d %H:%M') if r.created_at else '',
             'updated_at': r.updated_at.strftime('%Y-%m-%d %H:%M') if r.updated_at else ''
         })
@@ -2815,6 +2856,7 @@ def on_request_dashboard_refresh():
 if __name__ == "__main__":
     with app.app_context():
         db.create_all()
+        _ensure_indexes()  # 确保数据库索引存在
         seed_defaults()
         load_emotion_model()
         _register_sqlite_pragma()  # 🔴【修复】注册 SQLite WAL 模式 pragma

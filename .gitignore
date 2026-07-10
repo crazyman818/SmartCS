@@ -42,3 +42,4 @@ tests/
 data/
 models/train_bert.py
 models/chinese-macbert-base/
+.agents/
