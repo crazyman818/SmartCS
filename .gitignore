@@ -39,3 +39,6 @@ models/__pycache__/
 Thumbs.db
 skills-lock.json
 tests/
+data/
+models/train_bert.py
+models/chinese-macbert-base/
