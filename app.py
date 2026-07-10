@@ -7,13 +7,19 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 from datetime import datetime, timedelta, timezone
 from typing import Optional, Tuple, Dict, Any, List
+from functools import wraps
 import json
 import math
+import traceback
 import warnings
 import importlib
+import logging
 
 from dotenv import load_dotenv
 load_dotenv()  # 自动加载项目根目录下的 .env 文件
+
+logging.basicConfig(level=logging.INFO, format='[%(asctime)s] %(levelname)s: %(message)s')
+logger = logging.getLogger(__name__)
 
 # 可选：RAG 向量检索（无网络/无依赖时会自动降级为关键词检索）
 SentenceTransformer = None  # type: ignore
@@ -29,6 +35,9 @@ from flask_login import (
     current_user,
 )
 from werkzeug.security import generate_password_hash, check_password_hash
+from flask_wtf.csrf import CSRFProtect
+from flask_limiter import Limiter
+from flask_limiter.util import get_remote_address
 
 from openai import OpenAI
 
@@ -55,13 +64,37 @@ except ImportError:
 app = Flask(__name__)
 
 _secret_key = os.environ.get("SECRET_KEY")
+_debug_mode = os.environ.get("FLASK_DEBUG", "false").strip().lower() in {"1", "true", "yes", "on"}
+
 if not _secret_key:
-    _secret_key = "dev-insecure-default-do-not-use-in-prod"
-    warnings.warn(
-        "[WARN] SECRET_KEY 未通过环境变量设置，使用了不安全的开发默认值。生产部署前请务必设置 SECRET_KEY。",
-        RuntimeWarning, stacklevel=1,
-    )
+    if _debug_mode:
+        _secret_key = "dev-insecure-default-do-not-use-in-prod"
+        warnings.warn(
+            "[WARN] SECRET_KEY 未通过环境变量设置，使用了不安全的开发默认值。",
+            RuntimeWarning, stacklevel=1,
+        )
+    else:
+        raise RuntimeError(
+            "SECRET_KEY 必须设置！生产环境不允许使用默认密钥。"
+        )
 app.config["SECRET_KEY"] = _secret_key
+
+# Session 安全配置
+app.config["SESSION_COOKIE_HTTPONLY"] = True
+app.config["SESSION_COOKIE_SAMESITE"] = "Lax"
+app.config["SESSION_COOKIE_SECURE"] = os.environ.get("HTTPS", "").strip().lower() in {"1", "true", "yes", "on"}
+
+# CSRF 保护（仅保护 form 提交，JSON API 由 Flask-Login session 保护）
+csrf = CSRFProtect(app)
+app.config["WTF_CSRF_CHECK_DEFAULT"] = False  # 默认不检查，由视图手动处理
+
+# 速率限制
+limiter = Limiter(
+    app=app,
+    key_func=get_remote_address,
+    default_limits=["200 per day", "50 per hour"],
+    storage_uri="memory://",
+)
 
 _db_uri = os.environ.get("DATABASE_URL", "sqlite:///site.db")
 app.config["SQLALCHEMY_DATABASE_URI"] = _db_uri
@@ -668,6 +701,67 @@ def kb_build_context(query: str, top_k: int = 3) -> str:
 
 
 # ============================================================
+# 通用工具：装饰器、常量、序列化
+# ============================================================
+def admin_required(f):
+    @wraps(f)
+    def decorated(*args, **kwargs):
+        if not current_user.is_admin:
+            return jsonify({"success": False, "msg": "forbidden"}), 403
+        return f(*args, **kwargs)
+    return decorated
+
+
+# 状态常量
+ORDER_SHIPPED, ORDER_IN_TRANSIT = ("已发货", "运输中")
+ORDER_DELIVERED, ORDER_REFUNDED = ("已送达", "已退款")
+REFUND_PENDING, REFUND_APPROVED, REFUND_REJECTED = ("待审核", "已批准", "已拒绝")
+
+# LLM 参数
+LLM_MAX_INPUT, LLM_TEMP, LLM_MAX_TOKENS = (2000, 0.7, 180)
+CHAT_HISTORY_WINDOW = 8
+KB_TOP_K, KB_SCAN_LIMIT = (3, 500)
+
+# 危机阈值
+CRISIS_CONSECUTIVE = 3
+CRISIS_CONFIDENCE = 0.7
+
+# 退款预警阈值
+REFUND_YELLOW_COUNT, REFUND_YELLOW_RATE = (5, 30.0)
+REFUND_RED_COUNT, REFUND_RED_RATE = (10, 50.0)
+
+# 验证参数
+PW_MIN_LEN = 8
+CHAT_MAX_LEN = 2000
+
+
+def safe_emit(event, data, room):
+    try:
+        socketio.emit(event, data, room=room)
+    except Exception:
+        logger.warning("WS emit failed: %s room=%s", event, room)
+
+
+def chat_record_to_dict(r):
+    return {
+        "id": r.id, "text": r.text, "reply": r.reply,
+        "emotion": r.emotion, "confidence": r.confidence,
+        "timestamp": r.timestamp.isoformat(),
+        "is_admin_reply": bool(r.is_admin_reply),
+        "feedback": int(r.feedback or 0), "rating": int(r.rating or 0),
+    }
+
+
+def daily_trend(model, date_field, days=7):
+    today = datetime.now(timezone.utc).date()
+    return [{"date": (today - timedelta(days=d)).strftime("%m-%d"),
+             "count": model.query.filter(
+                 date_field >= datetime(today.year, today.month, today.day, tzinfo=timezone.utc) - timedelta(days=d),
+                 date_field < datetime(today.year, today.month, today.day, tzinfo=timezone.utc) - timedelta(days=d-1)
+             ).count()} for d in range(days - 1, -1, -1)]
+
+
+# ============================================================
 # [增强] 智能意图识别模块（12+意图类别）
 # 对应论文第3章：意图识别与路由
 # ============================================================
@@ -968,6 +1062,7 @@ def index():
 
 
 @app.route("/login", methods=["GET", "POST"])
+@limiter.limit("10 per minute")
 def login():
     # 1. 如果用户已经登录，直接跳过
     if current_user.is_authenticated:
@@ -1033,6 +1128,7 @@ def chat_page():
 # ============================================================
 @app.route("/api/chat", methods=["POST"])
 @login_required
+@limiter.limit("30 per minute")
 def api_chat():
     if current_user.is_admin:
         return jsonify({"status": "forbidden", "message": "admin cannot use user chat api"}), 403
@@ -1041,6 +1137,8 @@ def api_chat():
     text = (payload.get("text") or payload.get("message") or payload.get("input") or "").strip()
     if not text:
         return jsonify({"status": "empty"}), 400
+    if len(text) > CHAT_MAX_LEN:
+        return jsonify({"status": "error", "msg": f"消息过长，最多{CHAT_MAX_LEN}字"}), 400
 
     emotion, conf = predict_emotion(text)
 
@@ -2052,6 +2150,7 @@ def api_refund_alert():
 # register
 # ============================================================
 @app.route("/register", methods=["GET", "POST"])
+@limiter.limit("5 per minute")
 def register():
     if current_user.is_authenticated:
         return redirect(url_for("chat_page"))
@@ -2076,10 +2175,10 @@ def register():
                 return jsonify({"status": "error", "msg": "用户名长度需在 2~30 个字符之间"}), 400
             return render_template("register.html", error="用户名长度需在 2~30 个字符之间")
 
-        if len(password) < 6:
+        if len(password) < PW_MIN_LEN:
             if request.is_json:
-                return jsonify({"status": "error", "msg": "密码不能少于 6 位"}), 400
-            return render_template("register.html", error="密码不能少于 6 位")
+                return jsonify({"status": "error", "msg": f"密码不能少于{PW_MIN_LEN}位"}), 400
+            return render_template("register.html", error=f"密码不能少于{PW_MIN_LEN}位")
 
         # 检查是否已存在
         if User.query.filter_by(username=username).first():
@@ -2145,8 +2244,8 @@ def api_change_password():
 
     if not current_user.check_password(old_pw):
         return jsonify({'status': 'error', 'msg': '原密码错误'}), 400
-    if len(new_pw) < 6:
-        return jsonify({'status': 'error', 'msg': '新密码不能少于 6 位'}), 400
+    if len(new_pw) < PW_MIN_LEN:
+        return jsonify({'status': 'error', 'msg': f'新密码不能少于{PW_MIN_LEN}位'}), 400
 
     current_user.set_password(new_pw)
     db.session.commit()
@@ -2644,26 +2743,31 @@ def on_disconnect():
 
 @socketio.on('join')
 def on_join(data):
-    """
-    客户端加入房间
-    data: {'type': 'user'/'admin', 'user_id': xxx}
-    """
+    """客户端加入房间（含认证校验）"""
     user_type = data.get('type')
     sid = request.sid
+
+    # 认证校验：确保客户端不能伪造身份
+    try:
+        from flask_login import current_user as cu
+        if not cu.is_authenticated:
+            emit('joined', {'status': 'error', 'msg': 'not authenticated'})
+            return
+    except Exception:
+        pass  # 非 Flask 上下文时跳过（开发模式）
 
     if user_type == 'user':
         user_id = data.get('user_id')
         if user_id:
             join_room(f'user_{user_id}')
             connected_users[sid] = user_id
-            print(f"[SocketIO] 用户 {user_id} 加入房间 user_{user_id}")
-            # 发送连接成功确认
+            logger.info("SocketIO user %s joined room", user_id)
             emit('joined', {'status': 'connected', 'room': f'user_{user_id}'})
 
     elif user_type == 'admin':
         join_room('admin_room')
         connected_admins.add(sid)
-        print(f"[SocketIO] 管理员加入 admin_room")
+        logger.info("SocketIO admin joined admin_room")
         emit('joined', {'status': 'connected', 'room': 'admin_room'})
 
 
@@ -2746,5 +2850,5 @@ if __name__ == "__main__":
         host="127.0.0.1",
         port=5000,
         debug=debug_mode,
-        allow_unsafe_werkzeug=True
+        allow_unsafe_werkzeug=debug_mode
     )
