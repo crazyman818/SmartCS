@@ -1,6 +1,6 @@
 """用户服务 — 注册、登录、画像分析"""
 from datetime import datetime, timezone
-from app import db
+from smartcs.extensions import db
 from repositories.data_access import UserRepository
 from utils.errors import ValidationError, NotFoundError, ForbiddenError
 
@@ -11,7 +11,7 @@ class UserService:
     @staticmethod
     def register(username: str, password: str):
         """注册新用户"""
-        from app import PW_MIN_LEN
+        from smartcs.legacy_app import PW_MIN_LEN
 
         if not username or not password:
             raise ValidationError("用户名或密码不能为空")
@@ -22,7 +22,7 @@ class UserService:
         if UserRepository.get_by_username(username):
             raise ValidationError("该用户名已被占用")
 
-        from app import User
+        from smartcs.legacy_app import User
         from werkzeug.security import generate_password_hash
         user = User(username=username, is_admin=False)
         user.set_password(password)
@@ -43,7 +43,7 @@ class UserService:
 
     @staticmethod
     def change_password(user, old_password: str, new_password: str):
-        from app import PW_MIN_LEN
+        from smartcs.legacy_app import PW_MIN_LEN
         if not user.check_password(old_password):
             raise ValidationError("原密码错误")
         if len(new_password) < PW_MIN_LEN:
@@ -59,7 +59,7 @@ class UserService:
     @staticmethod
     def analyze_persona(user) -> dict:
         """生成用户画像"""
-        from app import llm_client, LLM_MODEL, PERSONA_HISTORY_WINDOW
+        from smartcs.legacy_app import llm_client, LLM_MODEL, PERSONA_HISTORY_WINDOW
         from repositories.data_access import ChatRepository
 
         records = (ChatRepository.get_recent_history(user.id, 999999, limit=PERSONA_HISTORY_WINDOW)

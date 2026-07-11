@@ -1,6 +1,6 @@
 """数据库优化工具 — 对应 backend-patterns 的 Transaction + N+1 Prevention"""
 from contextlib import contextmanager
-from app import db
+from smartcs.extensions import db
 
 
 @contextmanager

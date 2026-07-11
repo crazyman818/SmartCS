@@ -38,8 +38,12 @@ models/__pycache__/
 .DS_Store
 Thumbs.db
 skills-lock.json
-tests/
 data/
 models/train_bert.py
 models/chinese-macbert-base/
 .agents/
+.smartcs-server.pid
+smartcs-server.out.log
+smartcs-server.err.log
+.coverage
+htmlcov/

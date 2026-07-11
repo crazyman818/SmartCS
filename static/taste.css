@@ -1,0 +1,517 @@
+/* SmartCS Taste Layer
+   A restrained product UI layer loaded after page-specific styles. */
+:root {
+  --taste-ink: #172033;
+  --taste-ink-soft: #536176;
+  --taste-muted: #8290a4;
+  --taste-page: #f5f7fb;
+  --taste-surface: rgba(255, 255, 255, 0.94);
+  --taste-surface-solid: #ffffff;
+  --taste-elevated: #ffffff;
+  --taste-line: #dfe6f0;
+  --taste-line-soft: #eef2f7;
+  --taste-accent: #0f8f83;
+  --taste-accent-2: #2563eb;
+  --taste-warm: #b7791f;
+  --taste-danger: #d14343;
+  --taste-success: #16825d;
+  --taste-shadow: 0 12px 32px rgba(28, 39, 58, 0.10);
+  --taste-shadow-soft: 0 4px 18px rgba(28, 39, 58, 0.07);
+  --taste-radius: 8px;
+  --taste-radius-sm: 6px;
+  --taste-focus: 0 0 0 3px rgba(15, 143, 131, 0.16);
+}
+
+html {
+  background: var(--taste-page);
+}
+
+body {
+  background:
+    linear-gradient(180deg, #fbfcff 0%, var(--taste-page) 46%, #eef3f8 100%) !important;
+  color: var(--taste-ink) !important;
+  font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", "Microsoft YaHei", sans-serif !important;
+  letter-spacing: 0;
+  overflow-x: hidden !important;
+  overflow-y: auto;
+}
+
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: -1;
+  background:
+    linear-gradient(90deg, rgba(37, 99, 235, 0.055), transparent 32%, rgba(15, 143, 131, 0.055)),
+    repeating-linear-gradient(90deg, rgba(23, 32, 51, 0.025) 0 1px, transparent 1px 88px),
+    repeating-linear-gradient(180deg, rgba(23, 32, 51, 0.018) 0 1px, transparent 1px 88px);
+}
+
+body,
+button,
+input,
+textarea,
+select {
+  font-variant-numeric: tabular-nums;
+}
+
+*:focus-visible {
+  outline: none !important;
+  box-shadow: var(--taste-focus) !important;
+}
+
+/* Shared surfaces */
+.card,
+.login-card,
+.register-card,
+.chat-panel,
+.side-section,
+.kpi-card,
+.chart-container,
+.users-table-container,
+.quick-reply-card,
+.refund-card,
+.stat-card,
+.modal,
+.table-container,
+.profile-card,
+.order-card-enhanced,
+.quick-action-card {
+  background: var(--taste-surface) !important;
+  border: 1px solid var(--taste-line) !important;
+  border-radius: var(--taste-radius) !important;
+  box-shadow: var(--taste-shadow-soft) !important;
+  backdrop-filter: blur(14px);
+}
+
+.card:hover,
+.kpi-card:hover,
+.quick-action-card:hover,
+.quick-reply-card:hover,
+.order-card-enhanced:hover {
+  transform: translateY(-1px);
+  border-color: rgba(15, 143, 131, 0.36) !important;
+  box-shadow: var(--taste-shadow) !important;
+}
+
+.card-header,
+.chat-panel-header,
+.modal-header {
+  border-bottom: 1px solid var(--taste-line-soft) !important;
+  background: linear-gradient(180deg, rgba(255,255,255,0.96), rgba(247,249,252,0.82)) !important;
+}
+
+.card-title,
+.login-header h2,
+.register-header h2,
+.brand-title,
+.logo-text h1,
+.user-name {
+  color: var(--taste-ink) !important;
+  letter-spacing: 0 !important;
+}
+
+.card-sub,
+.kpi-sub,
+.muted,
+.help,
+.user-id,
+.brand-subtitle,
+.login-header p,
+.register-header p {
+  color: var(--taste-ink-soft) !important;
+}
+
+/* Navigation and top bars */
+.topbar,
+.sidebar-header {
+  background: linear-gradient(135deg, #172033 0%, #20304a 52%, #0f766e 100%) !important;
+  border-bottom: 1px solid rgba(255,255,255,0.12) !important;
+  box-shadow: 0 10px 30px rgba(23, 32, 51, 0.18) !important;
+}
+
+.topbar {
+  min-height: 72px;
+  padding: 14px 28px !important;
+}
+
+.logo-icon,
+.brand-logo,
+.kpi-icon,
+.feature-icon,
+.benefit-icon,
+.chat-avatar,
+.user-avatar,
+.message-avatar {
+  border-radius: var(--taste-radius) !important;
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.24);
+}
+
+.logo-icon,
+.brand-logo,
+.chat-avatar,
+.send-btn,
+.btn-primary,
+.login-btn,
+.register-btn {
+  background: linear-gradient(135deg, var(--taste-accent), #13766e) !important;
+  color: #fff !important;
+}
+
+.nav-btn,
+.tab-btn,
+.btn,
+.micro-btn,
+.header-btn,
+.tool-btn,
+.action-btn,
+.quick-chip,
+.logout-btn {
+  border-radius: var(--taste-radius-sm) !important;
+  border: 1px solid var(--taste-line) !important;
+  box-shadow: none !important;
+  transition: transform 150ms ease, background 150ms ease, border-color 150ms ease, color 150ms ease, box-shadow 150ms ease !important;
+}
+
+.nav-btn:hover,
+.tab-btn:hover,
+.btn:hover,
+.micro-btn:hover,
+.header-btn:hover,
+.tool-btn:hover,
+.action-btn:hover,
+.quick-chip:hover {
+  transform: translateY(-1px);
+  box-shadow: var(--taste-shadow-soft) !important;
+}
+
+.topbar .nav-btn,
+.topbar-right .nav-btn,
+.connection-status {
+  background: rgba(255, 255, 255, 0.12) !important;
+  border-color: rgba(255, 255, 255, 0.18) !important;
+  color: #fff !important;
+}
+
+.topbar .nav-btn:hover,
+.topbar-right .nav-btn:hover {
+  background: rgba(255, 255, 255, 0.22) !important;
+}
+
+.tabs-nav {
+  background: var(--taste-surface) !important;
+  border: 1px solid var(--taste-line) !important;
+  border-radius: var(--taste-radius) !important;
+  padding: 6px !important;
+  box-shadow: var(--taste-shadow-soft) !important;
+}
+
+.tab-btn {
+  background: transparent !important;
+  color: var(--taste-ink-soft) !important;
+}
+
+.tab-btn.active {
+  background: #172033 !important;
+  color: #fff !important;
+  border-color: #172033 !important;
+}
+
+/* Auth screens */
+.brand-section {
+  background: linear-gradient(145deg, #172033 0%, #20304a 58%, #0f766e 100%) !important;
+  color: #fff !important;
+}
+
+.brand-section::before {
+  display: none !important;
+}
+
+.brand-content {
+  text-align: left !important;
+}
+
+.brand-logo {
+  margin-left: 0 !important;
+  width: 76px !important;
+  height: 76px !important;
+  border: 1px solid rgba(255,255,255,0.18) !important;
+  background: rgba(255,255,255,0.12) !important;
+}
+
+.brand-logo i {
+  font-size: 34px !important;
+}
+
+.brand-title {
+  color: #fff !important;
+  font-size: clamp(32px, 5vw, 56px) !important;
+  line-height: 1.05 !important;
+  font-weight: 760 !important;
+}
+
+.brand-subtitle {
+  color: rgba(255,255,255,0.76) !important;
+  max-width: 480px;
+}
+
+.feature-item,
+.benefit-item,
+.demo-hint {
+  border: 1px solid rgba(255,255,255,0.14) !important;
+  border-radius: var(--taste-radius) !important;
+  background: rgba(255,255,255,0.10) !important;
+}
+
+.login-section,
+.register-section {
+  background: rgba(245, 247, 251, 0.72) !important;
+  padding: clamp(24px, 5vw, 72px) !important;
+}
+
+.login-card,
+.register-card {
+  max-width: 460px !important;
+  padding: 34px !important;
+}
+
+.login-header,
+.register-header {
+  text-align: left !important;
+}
+
+.divider::before,
+.divider::after {
+  background: var(--taste-line) !important;
+}
+
+/* Forms */
+.form-input,
+.message-input,
+.new-qr,
+textarea,
+select,
+input[type="text"],
+input[type="password"] {
+  background: #f8fafd !important;
+  border: 1px solid var(--taste-line) !important;
+  border-radius: var(--taste-radius-sm) !important;
+  color: var(--taste-ink) !important;
+}
+
+.form-input:focus,
+.message-input:focus,
+.new-qr:focus,
+textarea:focus,
+select:focus,
+input[type="text"]:focus,
+input[type="password"]:focus {
+  background: #fff !important;
+  border-color: var(--taste-accent) !important;
+  box-shadow: var(--taste-focus) !important;
+}
+
+.form-label {
+  color: var(--taste-ink-soft) !important;
+  font-weight: 650 !important;
+}
+
+/* Chat */
+.app-container {
+  height: 100dvh;
+  overflow: hidden !important;
+  background: transparent !important;
+}
+
+.sidebar {
+  background: rgba(255, 255, 255, 0.92) !important;
+  border-right: 1px solid var(--taste-line) !important;
+  box-shadow: 8px 0 28px rgba(28, 39, 58, 0.06);
+}
+
+.main-content,
+.chat-body,
+.chat-messages {
+  background: transparent !important;
+}
+
+.chat-header,
+.chat-input-area,
+.quick-replies-bar {
+  background: rgba(255, 255, 255, 0.90) !important;
+  border-color: var(--taste-line) !important;
+  backdrop-filter: blur(16px);
+}
+
+.message {
+  max-width: min(760px, 76%) !important;
+}
+
+.message-bubble,
+.msg-bubble {
+  border-radius: var(--taste-radius) !important;
+  box-shadow: var(--taste-shadow-soft) !important;
+}
+
+.message.user .message-bubble,
+.msg.right .msg-bubble {
+  background: linear-gradient(135deg, #172033, #2563eb) !important;
+  color: #fff !important;
+}
+
+.message.bot .message-bubble,
+.msg.left .msg-bubble {
+  background: var(--taste-surface-solid) !important;
+  border: 1px solid var(--taste-line) !important;
+  color: var(--taste-ink) !important;
+}
+
+.welcome-screen {
+  background: transparent !important;
+}
+
+.welcome-icon-animated {
+  border-radius: var(--taste-radius) !important;
+  background: linear-gradient(135deg, #172033, var(--taste-accent-2)) !important;
+}
+
+.quick-actions-grid {
+  gap: 12px !important;
+}
+
+/* Admin and dashboard */
+.main-container,
+.wrap,
+.layout {
+  max-width: 1440px !important;
+  margin-inline: auto !important;
+  padding: 24px !important;
+}
+
+.kpi-grid {
+  gap: 14px !important;
+}
+
+.kpi-card {
+  padding: 18px !important;
+  overflow: hidden;
+}
+
+.kpi-card::before {
+  opacity: 0.12 !important;
+}
+
+.kpi-value,
+.stat-card-value {
+  color: var(--taste-ink) !important;
+  font-weight: 760 !important;
+}
+
+.kpi-card.blue .kpi-icon,
+.badge-info,
+.status-badge.normal {
+  background: rgba(37, 99, 235, 0.12) !important;
+  color: #1d4ed8 !important;
+}
+
+.kpi-card.green .kpi-icon,
+.badge-success,
+.tag.green {
+  background: rgba(22, 130, 93, 0.12) !important;
+  color: var(--taste-success) !important;
+}
+
+.kpi-card.orange .kpi-icon,
+.badge-warning {
+  background: rgba(183, 121, 31, 0.14) !important;
+  color: var(--taste-warm) !important;
+}
+
+.kpi-card.red .kpi-icon,
+.badge-danger,
+.status-badge.danger,
+.tag.red {
+  background: rgba(209, 67, 67, 0.12) !important;
+  color: var(--taste-danger) !important;
+}
+
+.data-table,
+.users-table-container table {
+  border-collapse: separate !important;
+  border-spacing: 0 !important;
+}
+
+.data-table th,
+.users-table-container th {
+  background: #f3f6fa !important;
+  color: var(--taste-ink-soft) !important;
+  font-size: 12px !important;
+  letter-spacing: 0 !important;
+  text-transform: none !important;
+}
+
+.data-table td,
+.users-table-container td {
+  border-bottom: 1px solid var(--taste-line-soft) !important;
+}
+
+.data-table tr:hover td,
+.users-table-container tr:hover td {
+  background: rgba(37, 99, 235, 0.035) !important;
+}
+
+.toast,
+.toast-container .toast {
+  border-radius: var(--taste-radius) !important;
+  box-shadow: var(--taste-shadow) !important;
+}
+
+/* Reduce old decorative animation noise */
+.brand-logo,
+.brand-title,
+.brand-subtitle,
+.brand-features,
+.brand-benefits,
+.login-card,
+.register-card {
+  animation: none !important;
+}
+
+@media (max-width: 900px) {
+  body {
+    overflow-y: auto !important;
+  }
+
+  .brand-section {
+    display: none !important;
+  }
+
+  .login-section,
+  .register-section {
+    min-height: 100dvh !important;
+    width: 100% !important;
+  }
+
+  .login-card,
+  .register-card {
+    width: min(100%, 460px) !important;
+    padding: 26px !important;
+  }
+
+  .main-container,
+  .wrap,
+  .layout {
+    padding: 14px !important;
+  }
+
+  .topbar {
+    padding: 12px 16px !important;
+    gap: 12px;
+    flex-wrap: wrap;
+  }
+
+  .message {
+    max-width: 90% !important;
+  }
+}

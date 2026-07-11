@@ -1,8 +1,8 @@
 """数据库访问层 — 对应 backend-patterns 的 Repository Pattern"""
 from typing import Optional, List
 from datetime import datetime, timedelta, timezone
-from app import db
-from app import User, ChatRecord, Order, QuickReply, KnowledgeQA, RefundRequest, IntentStat
+from smartcs.extensions import db
+from smartcs.models import User, ChatRecord, Order, QuickReply, KnowledgeQA, RefundRequest, IntentStat
 
 
 class ChatRepository:
@@ -84,7 +84,7 @@ class ChatRepository:
 
     @staticmethod
     def get_all_with_username():
-        from app import User
+        from smartcs.models import User
         return (ChatRecord.query
                 .join(User, ChatRecord.user_id == User.id)
                 .add_columns(User.username)

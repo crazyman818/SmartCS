@@ -1,7 +1,7 @@
 """聊天服务层 — 对应 backend-patterns 的 Service Layer Pattern"""
 from typing import Optional, Tuple, List, Dict, Any
 from flask_socketio import emit as socket_emit
-from app import db, socketio
+from smartcs.extensions import db, socketio
 from repositories.data_access import ChatRepository, UserRepository, KnowledgeQARepository
 from utils.errors import ValidationError
 
@@ -13,7 +13,7 @@ class ChatService:
     def process_message(user, text: str, emotion: str, confidence: float,
                         intent: str, kb_context: str, orders_data: list) -> dict:
         """处理一条用户消息的完整流程（不含 LLM 生成，由调用方提供）"""
-        from app import classify_intent, log_intent_stat, update_risk_state_by_emotion
+        from smartcs.legacy_app import classify_intent, log_intent_stat, update_risk_state_by_emotion
 
         # 1. 写入用户消息
         user_record = ChatRepository.create_user_message(user.id, text, emotion, confidence)
@@ -68,7 +68,7 @@ class ChatService:
     def build_reply_with_intervention(user, text: str, emotion: str,
                                        extra_info: str, history: list) -> Tuple[str, bool]:
         """生成回复（含危机干预沉默逻辑）"""
-        from app import generate_llm_reply, admin_has_intervened
+        from smartcs.legacy_app import generate_llm_reply, admin_has_intervened
 
         if not user.needs_intervention:
             reply = generate_llm_reply(text, emotion, extra_info, history)
@@ -101,7 +101,7 @@ class ChatService:
     @staticmethod
     def process_feedback(user, record_id: int, action: str) -> bool:
         """处理用户反馈（赞/踩），返回是否触发干预"""
-        from app import update_risk_state_by_feedback
+        from smartcs.legacy_app import update_risk_state_by_feedback
 
         record = ChatRepository.get_by_id(record_id)
         if not record or record.user_id != user.id:

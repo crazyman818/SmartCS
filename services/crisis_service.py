@@ -1,7 +1,7 @@
 """危机干预服务 — 三级预警（黄/红）逻辑"""
 from typing import Tuple
 from flask_socketio import emit
-from app import db, socketio
+from smartcs.extensions import db, socketio
 from repositories.data_access import UserRepository, ChatRepository
 
 NEGATIVE_EMOTIONS = {"sad", "fear", "angry"}

@@ -1512,6 +1512,7 @@
       margin-top: 4px;
     }
   </style>
+  <link rel="stylesheet" href="{{ url_for('static', filename='taste.css') }}">
 </head>
 <body>
 
@@ -2133,7 +2134,7 @@
 
     // Socket.IO 连接
     const socket = io({
-      transports: ['websocket', 'polling'],
+      transports: ['polling'],
       reconnection: true,
       reconnectionDelay: 1000,
       reconnectionAttempts: 10
