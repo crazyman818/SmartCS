@@ -1,0 +1,37 @@
+name: Tests
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+
+jobs:
+  pytest:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    env:
+      SMARTCS_ENV: testing
+      SECRET_KEY: test-secret-key
+      SOCKETIO_ASYNC_MODE: threading
+      LOAD_EMOTION_MODEL_ON_STARTUP: "false"
+      ENABLE_DEMO_SEED: "false"
+      LLM_API_KEY: ""
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Run tests
+        run: python -m pytest

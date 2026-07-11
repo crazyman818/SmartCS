@@ -49,3 +49,13 @@ def test_user_socket_cannot_join_admin_room(app, users):
     joined_payload = next(event["args"][0] for event in socket_client.get_received() if event["name"] == "joined")
 
     assert joined_payload["status"] == "error"
+
+
+def test_socketio_polling_accepts_configured_local_origin(app):
+    response = app.test_client().get(
+        "/socket.io/?EIO=4&transport=polling&t=test-origin",
+        headers={"Origin": "http://127.0.0.1:5000"},
+    )
+
+    assert response.status_code == 200
+    assert b'"sid"' in response.data

@@ -23,6 +23,7 @@ def app():
         WTF_CSRF_CHECK_DEFAULT=False,
         LOAD_EMOTION_MODEL_ON_STARTUP=False,
         ENABLE_DEMO_SEED=False,
+        RATELIMIT_ENABLED=False,
     )
 
     with flask_app.app_context():

@@ -10,6 +10,17 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 load_dotenv(BASE_DIR / ".env")
 
 
+def parse_socketio_cors_origins(raw: str | None):
+    if raw is None:
+        return None
+    value = raw.strip()
+    if not value:
+        return None
+    if value == "*":
+        return "*"
+    return [origin.strip() for origin in value.split(",") if origin.strip()]
+
+
 def _bool_env(name: str, default: bool = False) -> bool:
     raw = os.environ.get(name)
     if raw is None:
@@ -36,9 +47,11 @@ class BaseConfig:
 
     SOCKETIO_ASYNC_MODE = os.environ.get("SOCKETIO_ASYNC_MODE", "eventlet").strip()
     SOCKETIO_MESSAGE_QUEUE = os.environ.get("SOCKETIO_MESSAGE_QUEUE")
-    SOCKETIO_CORS_ALLOWED_ORIGINS = os.environ.get(
-        "SOCKETIO_CORS_ALLOWED_ORIGINS",
-        os.environ.get("CORS_ALLOWED_ORIGINS", "http://127.0.0.1:5000,http://localhost:5000"),
+    SOCKETIO_CORS_ALLOWED_ORIGINS = parse_socketio_cors_origins(
+        os.environ.get(
+            "SOCKETIO_CORS_ALLOWED_ORIGINS",
+            os.environ.get("CORS_ALLOWED_ORIGINS", "http://127.0.0.1:5000,http://localhost:5000"),
+        )
     )
 
     LOAD_EMOTION_MODEL_ON_STARTUP = _bool_env("LOAD_EMOTION_MODEL_ON_STARTUP", True)
@@ -58,6 +71,7 @@ class TestingConfig(BaseConfig):
     LOAD_EMOTION_MODEL_ON_STARTUP = False
     ENABLE_DEMO_SEED = False
     SOCKETIO_ASYNC_MODE = "threading"
+    RATELIMIT_ENABLED = False
 
 
 class ProductionConfig(BaseConfig):

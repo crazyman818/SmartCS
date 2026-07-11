@@ -6,6 +6,7 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(BASE_DIR))
 
 from dotenv import load_dotenv
+from smartcs.config import parse_socketio_cors_origins
 load_dotenv(BASE_DIR / ".env")
 
 _flask_socketio_async_mode = os.environ.get("SOCKETIO_ASYNC_MODE", "eventlet").strip()
@@ -154,9 +155,11 @@ def _ensure_indexes():
 
 # SocketIO configuration
 app.config["SOCKETIO_MESSAGE_QUEUE"] = os.environ.get("SOCKETIO_MESSAGE_QUEUE", None)
-app.config["SOCKETIO_CORS_ALLOWED_ORIGINS"] = os.environ.get(
-    "SOCKETIO_CORS_ALLOWED_ORIGINS",
-    os.environ.get("CORS_ALLOWED_ORIGINS", "http://127.0.0.1:5000,http://localhost:5000"),
+app.config["SOCKETIO_CORS_ALLOWED_ORIGINS"] = parse_socketio_cors_origins(
+    os.environ.get(
+        "SOCKETIO_CORS_ALLOWED_ORIGINS",
+        os.environ.get("CORS_ALLOWED_ORIGINS", "http://127.0.0.1:5000,http://localhost:5000"),
+    )
 )
 app.config["SOCKETIO_ASYNC_MODE"] = _flask_socketio_async_mode
 

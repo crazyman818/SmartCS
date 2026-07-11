@@ -1,0 +1,27 @@
+services:
+  smartcs:
+    build: .
+    ports:
+      - "${SMARTCS_PORT:-5000}:5000"
+    environment:
+      SMARTCS_ENV: "${SMARTCS_ENV:-development}"
+      SECRET_KEY: "${SECRET_KEY:-dev-insecure-docker-default-do-not-use-in-prod}"
+      DATABASE_URL: "${DATABASE_URL:-sqlite:///site.db}"
+      FLASK_DEBUG: "${FLASK_DEBUG:-false}"
+      SOCKETIO_ASYNC_MODE: "${SOCKETIO_ASYNC_MODE:-threading}"
+      SOCKETIO_CORS_ALLOWED_ORIGINS: "${SOCKETIO_CORS_ALLOWED_ORIGINS:-http://127.0.0.1:5000,http://localhost:5000}"
+      SOCKETIO_MESSAGE_QUEUE: "${SOCKETIO_MESSAGE_QUEUE:-}"
+      LOAD_EMOTION_MODEL_ON_STARTUP: "${LOAD_EMOTION_MODEL_ON_STARTUP:-false}"
+      ENABLE_DEMO_SEED: "${ENABLE_DEMO_SEED:-true}"
+      LLM_API_KEY: "${LLM_API_KEY:-}"
+      LLM_BASE_URL: "${LLM_BASE_URL:-https://api.deepseek.com}"
+      LLM_MODEL: "${LLM_MODEL:-deepseek-chat}"
+      DEMO_ADMIN_USERNAME: "${DEMO_ADMIN_USERNAME:-admin}"
+      DEMO_ADMIN_PASSWORD: "${DEMO_ADMIN_PASSWORD:-admin12345}"
+      DEMO_USER_USERNAME: "${DEMO_USER_USERNAME:-user1}"
+      DEMO_USER_PASSWORD: "${DEMO_USER_PASSWORD:-user12345}"
+    volumes:
+      - smartcs-instance:/app/instance
+
+volumes:
+  smartcs-instance:

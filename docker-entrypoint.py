@@ -1,20 +1,18 @@
-"""Backward-compatible local entrypoint for SmartCS."""
+"""Container entrypoint for SmartCS."""
 from smartcs import create_app
 from smartcs.bootstrap import bootstrap_application
 from smartcs.extensions import socketio
-from smartcs.legacy_app import *  # noqa: F401,F403 - keep old imports working.
 
 
 def main() -> None:
     flask_app = create_app()
     bootstrap_application(flask_app)
 
-    debug_mode = flask_app.config.get("DEBUG", False)
     socketio.run(
         flask_app,
-        host="127.0.0.1",
+        host="0.0.0.0",
         port=5000,
-        debug=debug_mode,
+        debug=flask_app.config.get("DEBUG", False),
         allow_unsafe_werkzeug=True,
         use_reloader=False,
     )
